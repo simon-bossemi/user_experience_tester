@@ -103,9 +103,10 @@ Your goal:
 
 Create:
 
-- docs/manuals/tt-xla-linux-manual.md
+- docs/manuals/tt-xla-linux-manual.md, the manual shall detail all the tasks, if some information are on website, copy/paste the info on this website, the manual shall allow a user to follow step by step what the script is doing to install and run the tool given as input
 - scripts/tt-xla-bootstrap.sh
 - reports/tt-xla-installation-report.md
+- if task failed due to credential or access issue, generate a separarate .md report fo this named "credential_or_access_issues.md"
 
 ---
 
@@ -117,15 +118,18 @@ Create:
 - prerequisites
 - system dependencies
 - package installation
+- installation commands in the linux machine
 - toolchain setup
 - repository checkout
 - environment preparation
+- all the commands needed if I want to run manually the script step by step
 - model discovery
 - model export/conversion (if required)
 - compile steps
 - run / validation steps
 - troubleshooting
 - replay checklist
+- use websites as reference but don't make me visit them, copy paste required information
 
 ---
 
@@ -134,6 +138,7 @@ Create:
 - run with a single command
 - install missing dependencies when possible
 - detect environment specifics (OS, packages, paths)
+- identify the successful step and be able to restart from next step not yet passed after changes in the environment
 - print clear logs
 - stop with actionable error messages
 - separate:
@@ -142,6 +147,7 @@ Create:
   - model preparation
   - compile/run steps
 - be idempotent where possible
+- Propose adaptation to the script and run them, the manual following your experiment
 
 ---
 
@@ -157,6 +163,8 @@ Create:
   - verified
   - partially verified
   - unverified
+- adaptation to the script that were required to make it work
+-  the manual improvement following your experiment
 
 ---
 
@@ -196,6 +204,10 @@ You are:
 - anticipating failures
 - filling documentation gaps
 - producing something a developer can run **without guessing**
+- go step by step
+- Identify what is working and what is not
+- Solve what is not working
+- Propose adaptation to the script, the manual following your experiment
 
 Your output must behave like:
 - a senior engineer onboarding guide
