@@ -14,6 +14,25 @@
 
 ---
 
+## 0. Second-Run Summary (Revised 2026)
+
+This report has been revised following updated agent and repository instructions. Key improvements
+in this revision compared to the initial 2025 report:
+
+| Area | Change |
+|------|--------|
+| Manual audience | Explicitly written for beginners in AI and Linux |
+| Manual structure | Added "How to Open a Terminal" section; added Glossary |
+| Manual commands | Added "what this command does" explanations next to each command |
+| Manual outputs | Expanded expected output samples throughout |
+| Troubleshooting | Added actionable next steps and diagnosis commands per error |
+| Script error messages | Added specific recovery instructions per failure mode |
+| Script Step 10 | Added per-step explanation of what the user should expect to see |
+
+The core gap analysis and findings from the initial run remain valid and are preserved below.
+
+---
+
 ## 1. Executive Summary
 
 TT-XLA is a **hardware-dependent** compiler front-end. Installation can be split into two
