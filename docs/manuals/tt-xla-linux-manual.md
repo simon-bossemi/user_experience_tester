@@ -1,4 +1,4 @@
-# TT-XLA Linux Installation and Usage Manual
+# TT-XLA Linux Installation Manual and Practical Example
 
 **Tool:** TT-XLA (Tenstorrent XLA)  
 **Target hardware:** BOS A0 (Tenstorrent Blackhole — p100a / p150a / p150b)  
@@ -16,13 +16,22 @@
 5. [Software Installation — Option A: Wheel (Recommended)](#5-software-installation--option-a-wheel-recommended)
 6. [Software Installation — Option B: Docker](#6-software-installation--option-b-docker)
 7. [Software Installation — Option C: Build from Source](#7-software-installation--option-c-build-from-source)
-8. [ResNet50 PyTorch Model — Discovery and Compilation](#8-resnet50-pytorch-model--discovery-and-compilation)
-9. [Running Inference](#9-running-inference)
-10. [Expected Outputs](#10-expected-outputs)
+8. [TT-XLA Practical Example Scope](#8-tt-xla-practical-example-scope)
+9. [Prepare the Model Input and Workspace](#9-prepare-the-model-input-and-workspace)
+10. [Generate Compiler Artifacts](#10-generate-compiler-artifacts)
 11. [Troubleshooting](#11-troubleshooting)
 12. [Replay Checklist](#12-replay-checklist)
 
 ---
+
+> Update: the current manual flow is installation in Sections 1 through 7, then artifact
+> generation in Sections 8 through 12. The old runtime walkthrough has been moved to appendices.
+>
+> Preferred split files:
+> - `docs/manuals/tt-xla-installation-manual.md`
+> - `docs/manuals/tt-xla-practical-example.md`
+> - `docs/manuals/resnet50-run-example.md`
+> - `docs/manuals/troubleshooting.md`
 
 ## 1. Overview and Key Concepts
 
@@ -966,7 +975,389 @@ pip install dist/pjrt_plugin_tt*.whl
 
 ---
 
-## 8. ResNet50 PyTorch Model — Discovery and Compilation
+## Legacy Section Title (Preserved for Compatibility)
+
+> The legacy section title above is preserved from the previous revision. Use the practical
+> example sections below as the current workflow.
+
+## 8. TT-XLA Practical Example Scope
+
+This manual is now split into two parts:
+
+- **Sections 1 through 7:** install TT-XLA, drivers, runtime dependencies, and the optional
+  source-build flow.
+- **Sections 8 through 12:** a practical example that stops at compiler artifact generation.
+
+This practical example does **not** cover model execution or inference results yet. It ends after
+you generate the following files:
+
+- frontend SHLO
+- optimized SHLO
+- TTIR
+- TTNN IR
+- final `.ttnn` executable
+
+### 8.1 Artifact Stages for This Practical Example
+
+| Step | Stage | Description | Input | Tool | Output | Artifact example |
+|------|-------|-------------|-------|------|--------|------------------|
+| 1 | Model input | User provides model | PyTorch / ONNX | - | - | - |
+| 2 | Frontend lowering | Convert to compiler IR | Model | tt-xla | SHLO | `shlo_frontend_*.mlir` |
+| 3 | Graph optimization | Clean and optimize graph | SHLO | tt-xla | Optimized SHLO | `shlo_resnet50_*.mlir` |
+| 4 | TTIR generation | Lower to TTIR | SHLO | tt-mlir | TTIR | `ttir_*.mlir` |
+| 5 | TTNN IR | Add runtime semantics | TTIR | tt-mlir | TTNN IR | `ttnn_*.mlir` |
+| 6 | Executable generation | Generate binary | TTNN IR | tt-mlir | Executable | `.ttnn` |
+
+### 8.2 Model Input for This Example
+
+Use the BOS ResNet50 model package as the input reference for this practical example:
+
+- `https://github.com/bos-semi-release/tt-metal/tree/develop/models/bos_model/resnet50`
+
+The goal is not to run the model yet. The goal is to use that ResNet50 package as the source
+material for compilation and to collect the intermediate compiler artifacts listed above.
+
+---
+
+## 9. Prepare the Model Input and Workspace
+
+### 9.1 Activate the TT-XLA Python Environment
+
+```bash
+source ~/.tt-xla-venv/bin/activate
+python --version
+```
+
+### 9.2 Fetch the BOS ResNet50 Input Package
+
+Use these commands so the model input is explicit and easy to inspect:
+
+```bash
+mkdir -p ~/bos-ai-compiler-demo
+cd ~/bos-ai-compiler-demo
+
+git clone --branch develop https://github.com/bos-semi-release/tt-metal.git
+
+export MODEL_ROOT=~/bos-ai-compiler-demo/tt-metal/models/bos_model/resnet50
+
+echo "MODEL_ROOT=$MODEL_ROOT"
+find "$MODEL_ROOT" -maxdepth 2 -type f | sort
+```
+
+> If the repository is private in your environment, switch the clone URL to your BOS-approved
+> SSH remote and keep `MODEL_ROOT` pointing at the same `models/bos_model/resnet50` directory.
+
+### 9.3 Create a Dedicated Artifact Workspace
+
+Create one directory per compiler stage so the outputs stay separated:
+
+```bash
+export EXAMPLE_ROOT=~/bos-ai-compiler-demo/resnet50_tt_xla_artifacts
+
+mkdir -p \
+  "$EXAMPLE_ROOT"/00-raw-codegen \
+  "$EXAMPLE_ROOT"/01-frontend-shlo \
+  "$EXAMPLE_ROOT"/02-optimized-shlo \
+  "$EXAMPLE_ROOT"/03-ttir \
+  "$EXAMPLE_ROOT"/04-ttnn-ir \
+  "$EXAMPLE_ROOT"/06-executable \
+  "$EXAMPLE_ROOT"/logs
+
+tree -L 1 "$EXAMPLE_ROOT"
+```
+
+### 9.4 Decide How You Will Instantiate the Model
+
+The `MODEL_ROOT` directory is the canonical input package for this practical example. Before you
+compile anything, inspect it and decide which Python entrypoint defines the ResNet50 graph in your
+branch.
+
+If your branch already contains a BOS-specific ResNet50 Python module, import that module in the
+driver script below. If it does not, you can start with a standard PyTorch ResNet50 topology and
+then swap in the BOS model entrypoint later without changing the artifact-export logic.
+
+---
+
+## 10. Generate Compiler Artifacts
+
+### 10.1 Create the TT-XLA Codegen Driver
+
+Create a dedicated driver script for artifact generation:
+
+```bash
+cd ~/bos-ai-compiler-demo
+nano export_resnet50_artifacts.py
+```
+
+Paste the following code:
+
+```python
+#!/usr/bin/env python3
+
+from pathlib import Path
+
+import torch
+import torch_xla
+import torch_xla.core.xla_model as xm
+import torchvision.models as models
+import torch_plugin_tt  # noqa: F401
+
+
+MODEL_ROOT = Path.home() / "bos-ai-compiler-demo" / "tt-metal" / "models" / "bos_model" / "resnet50"
+EXPORT_PATH = Path.home() / "bos-ai-compiler-demo" / "resnet50_tt_xla_artifacts" / "00-raw-codegen"
+
+
+def build_model_from_model_root(model_root: Path) -> torch.nn.Module:
+    print(f"[INFO] BOS model input directory: {model_root}")
+    if not model_root.exists():
+        raise FileNotFoundError(f"MODEL_ROOT does not exist: {model_root}")
+
+    python_files = sorted(model_root.glob("*.py"))
+    if python_files:
+        print("[INFO] Python files available in MODEL_ROOT:")
+        for path in python_files:
+            print(f"  - {path.name}")
+
+    # Replace this fallback with the exact BOS ResNet50 entrypoint from MODEL_ROOT if your
+    # branch provides one. The export flow below stays the same.
+    model = models.resnet50(weights=None)
+    model.eval()
+    return model
+
+
+def main() -> None:
+    EXPORT_PATH.mkdir(parents=True, exist_ok=True)
+
+    options = {
+        "backend": "codegen_py",
+        "export_path": str(EXPORT_PATH),
+    }
+    torch_xla.set_custom_compile_options(options)
+
+    device = xm.xla_device()
+    model = build_model_from_model_root(MODEL_ROOT)
+    model = model.to(device)
+
+    if hasattr(model, "compile"):
+        model.compile(backend="tt")
+        compiled = model
+    else:
+        compiled = torch.compile(model, backend="tt")
+
+    dummy_input = torch.randn(1, 3, 224, 224).to(device)
+
+    with torch.no_grad():
+        _ = compiled(dummy_input)
+
+    print("[OK] Artifact export finished.")
+    print(f"[OK] Raw outputs written to: {EXPORT_PATH}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+### 10.2 Run the Frontend Lowering
+
+```bash
+cd ~/bos-ai-compiler-demo
+source ~/.tt-xla-venv/bin/activate
+
+export MODEL_ROOT=~/bos-ai-compiler-demo/tt-metal/models/bos_model/resnet50
+export EXAMPLE_ROOT=~/bos-ai-compiler-demo/resnet50_tt_xla_artifacts
+
+python export_resnet50_artifacts.py | tee "$EXAMPLE_ROOT/logs/frontend_codegen.log"
+```
+
+After the run completes, copy the generated files into stage-specific folders:
+
+```bash
+cp "$EXAMPLE_ROOT"/00-raw-codegen/irs/shlo_frontend_*.mlir "$EXAMPLE_ROOT"/01-frontend-shlo/ 2>/dev/null || true
+cp "$EXAMPLE_ROOT"/00-raw-codegen/irs/shlo_resnet50_*.mlir "$EXAMPLE_ROOT"/02-optimized-shlo/ 2>/dev/null || true
+cp "$EXAMPLE_ROOT"/00-raw-codegen/irs/ttir*.mlir "$EXAMPLE_ROOT"/03-ttir/ 2>/dev/null || true
+cp "$EXAMPLE_ROOT"/00-raw-codegen/irs/ttnn*.mlir "$EXAMPLE_ROOT"/04-ttnn-ir/ 2>/dev/null || true
+```
+
+### 10.3 Generate the `.ttnn` Executable
+
+Use the TT-MLIR tools from your source build to convert TTIR into TTNN IR and then into the final
+flatbuffer executable:
+
+```bash
+export TTMLIR_ROOT=/workspace/xla-dev/tt-mlir
+export TTMLIR_OPT="$TTMLIR_ROOT/build/bin/ttmlir-opt"
+export TTMLIR_TRANSLATE="$TTMLIR_ROOT/build/bin/ttmlir-translate"
+
+TTIR_INPUT=$(find "$EXAMPLE_ROOT"/03-ttir -maxdepth 1 -name 'ttir*.mlir' | sort | head -n 1)
+
+"$TTMLIR_OPT" \
+  --ttir-to-ttnn-backend-pipeline \
+  "$TTIR_INPUT" \
+  -o "$EXAMPLE_ROOT/04-ttnn-ir/ttnn_backend.mlir"
+
+"$TTMLIR_TRANSLATE" \
+  --ttnn-to-flatbuffer \
+  "$EXAMPLE_ROOT/04-ttnn-ir/ttnn_backend.mlir" \
+  -o "$EXAMPLE_ROOT/06-executable/resnet50.ttnn"
+```
+
+### 10.4 Verify the Artifact Set
+
+```bash
+find "$EXAMPLE_ROOT" -maxdepth 2 -type f | sort
+```
+
+At the end of this practical example, you should have a layout similar to:
+
+```text
+$EXAMPLE_ROOT/
+  00-raw-codegen/
+  01-frontend-shlo/shlo_frontend_*.mlir
+  02-optimized-shlo/shlo_resnet50_*.mlir
+  03-ttir/ttir_*.mlir
+  04-ttnn-ir/ttnn_*.mlir
+  06-executable/resnet50.ttnn
+  logs/frontend_codegen.log
+```
+
+### 10.5 What This Example Deliberately Does Not Do
+
+This practical example stops here on purpose.
+
+It does **not** cover:
+
+- loading a real image
+- running the compiled model on hardware
+- decoding classification results
+- comparing predictions with PyTorch output
+
+That runtime flow should live in a separate practical example later.
+
+---
+
+## 11. Troubleshooting
+
+### Problem: `Compile option 'export_path' must be provided`
+
+Your TT-XLA codegen options were not set before compile time.
+
+```bash
+grep -n "export_path" ~/bos-ai-compiler-demo/export_resnet50_artifacts.py
+```
+
+Make sure this block exists in the script:
+
+```python
+options = {
+    "backend": "codegen_py",
+    "export_path": str(EXPORT_PATH),
+}
+```
+
+### Problem: `MODEL_ROOT` is wrong or empty
+
+```bash
+echo "$MODEL_ROOT"
+find "$MODEL_ROOT" -maxdepth 2 -type f | sort
+```
+
+If the directory does not contain the BOS ResNet50 package, re-clone `tt-metal` and reset:
+
+```bash
+cd ~/bos-ai-compiler-demo
+rm -rf tt-metal
+git clone --branch develop https://github.com/bos-semi-release/tt-metal.git
+export MODEL_ROOT=~/bos-ai-compiler-demo/tt-metal/models/bos_model/resnet50
+```
+
+### Problem: Code generation fails before TTIR is produced
+
+Check whether the export path is writable and whether TTIR was emitted at all:
+
+```bash
+mkdir -p "$EXAMPLE_ROOT"/00-raw-codegen
+touch "$EXAMPLE_ROOT"/00-raw-codegen/test && rm "$EXAMPLE_ROOT"/00-raw-codegen/test
+find "$EXAMPLE_ROOT"/00-raw-codegen -name 'ttir*.mlir' -ls
+```
+
+If no TTIR file exists, read the frontend log first:
+
+```bash
+sed -n '1,200p' "$EXAMPLE_ROOT/logs/frontend_codegen.log"
+```
+
+### Problem: `torch_plugin_tt` or `torch_xla` import fails
+
+Re-activate the correct environment and reinstall the pinned packages:
+
+```bash
+source ~/.tt-xla-venv/bin/activate
+pip install --force-reinstall \
+  torch==2.9.0+cpu \
+  torchvision==0.24.0+cpu \
+  --index-url https://download.pytorch.org/whl/cpu
+pip install --force-reinstall --no-deps \
+  pjrt-plugin-tt==0.9.0 \
+  --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+```
+
+### Problem: `ttmlir-opt` or `ttmlir-translate` is missing
+
+Confirm your TT-MLIR source build finished successfully:
+
+```bash
+ls -l "$TTMLIR_ROOT"/build/bin/ttmlir-opt
+ls -l "$TTMLIR_ROOT"/build/bin/ttmlir-translate
+```
+
+If either file is missing, return to Section 7 and rebuild TT-MLIR before retrying the practical
+example.
+
+### Problem: the compile seems to hang for a long time
+
+The first compile can take time because TT-XLA still needs to lower the graph and run code
+generation. Wait for the log to finish before interrupting the process.
+
+In a second terminal, you can watch whether the process is still active:
+
+```bash
+top -b -n 1 | head -20
+```
+
+---
+
+## 12. Replay Checklist
+
+Use this checklist to verify the installation part and the artifact-generation part separately.
+
+### Installation
+
+- [ ] BOS A0 hardware is installed and visible on the PCIe bus
+- [ ] TT-Installer completed successfully and the system was rebooted
+- [ ] `ls /dev/bos/` shows at least one device file
+- [ ] Python 3.11 or 3.12 virtual environment exists at `~/.tt-xla-venv`
+- [ ] `python3 -c "import torch_plugin_tt; print('OK')"` succeeds
+- [ ] Source-build users completed Section 7 and have TT-MLIR tools under `build/bin/`
+
+### Practical example input
+
+- [ ] `tt-metal` was cloned on the `develop` branch
+- [ ] `MODEL_ROOT` points to `models/bos_model/resnet50`
+- [ ] `find "$MODEL_ROOT" -maxdepth 2 -type f | sort` lists the BOS model package contents
+- [ ] `EXAMPLE_ROOT` exists with one subdirectory per compiler stage
+
+### Practical example outputs
+
+- [ ] `01-frontend-shlo/` contains `shlo_frontend_*.mlir`
+- [ ] `02-optimized-shlo/` contains `shlo_resnet50_*.mlir`
+- [ ] `03-ttir/` contains `ttir_*.mlir`
+- [ ] `04-ttnn-ir/` contains `ttnn_*.mlir`
+- [ ] `06-executable/` contains `resnet50.ttnn`
+- [ ] No runtime execution or inference validation was attempted in this example
+
+---
+
+## Appendix A. Legacy Runtime Walkthrough
 
 ### 8.1 Model Source
 
@@ -1122,7 +1513,7 @@ python run_resnet50_tt.py
 
 ---
 
-## 9. Running Inference
+## Appendix B. Legacy Runtime Notes
 
 ### 9.1 Minimal Smoke Test (no image required)
 
@@ -1172,7 +1563,7 @@ print("JAX matmul result shape:", result.shape)
 
 ---
 
-## 10. Expected Outputs
+## Appendix C. Legacy Runtime Outputs
 
 ### 10.1 Installation Verification
 
@@ -1237,7 +1628,7 @@ HugePages_Total:       4
 
 ---
 
-## 11. Troubleshooting
+## Appendix D. Legacy Troubleshooting
 
 ### Problem: `No TT devices found` or `jax.devices('tt')` returns `[]`
 
@@ -1537,7 +1928,7 @@ See [Section 7.4 — Known BOS A0 build issue](#74-build-tt-xla) for the full fi
 
 ---
 
-## 12. Replay Checklist
+## Appendix E. Legacy Replay Checklist
 
 Use this checklist to verify a fresh BOS A0 install from scratch.
 

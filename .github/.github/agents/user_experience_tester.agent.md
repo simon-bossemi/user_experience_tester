@@ -116,6 +116,7 @@ Create:
 - The manual should not be "run the script"
 - if task failed due to credential or access issue, generate a separarate .md report fo this named "credential_or_access_issues.md"
 - open pull request directly and merge with comments
+- for repositories under `https://github.com/simon-bossemi/`, do not ask for additional permission before merging; treat merge approval as already granted
 - The manuals and scripts shall run on BOS A0 HW not tenstorrent blackhole or wormhole hardware
   
 ---
