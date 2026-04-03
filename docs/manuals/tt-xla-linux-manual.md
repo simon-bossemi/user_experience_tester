@@ -318,21 +318,15 @@ package is not on the main PyPI server.
 ```bash
 # Install PyTorch (CPU build sufficient for tracing; TT device handles compute)
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-
-# Install torch-xla (Tenstorrent's fork is bundled inside pjrt-plugin-tt,
-# but if a standalone torch-xla is needed):
-pip install torch-xla
 ```
-
-### 5.4 Verify Installation
-
-```bash
-python3 -c "import jax; print(jax.devices('tt'))"
-# Expected for Wormhole:  [TTDevice(id=0, arch=Wormhole_b0)]
-# Expected for BOS A0:    [TTDevice(id=0, arch=blackhole)]
 
 **Why CPU wheel?** The Tenstorrent NPU is the compute target, not a GPU. Installing the CPU
 version of PyTorch saves ~1 GB of unnecessary CUDA libraries.
+
+> ⚠️ **Do NOT install `torch-xla` separately.** Tenstorrent's fork of `torch-xla` is already
+> bundled inside the `pjrt-plugin-tt` wheel. Installing a standalone `torch-xla` on top will
+> create a version conflict and break the plugin. See the gap analysis in
+> `reports/tt-xla-installation-report.md` (Section 2.2) for details.
 
 **Expected output:**
 ```
@@ -348,7 +342,12 @@ Run these two checks to confirm everything is working:
 python3 -c "import jax; print(jax.devices('tt'))"
 ```
 
-**Expected output:**
+**Expected output (BOS A0 / Blackhole):**
+```
+[TTDevice(id=0, arch=blackhole)]
+```
+
+**Expected output (Wormhole n150/n300):**
 ```
 [TTDevice(id=0, arch=Wormhole_b0)]
 ```
@@ -425,7 +424,12 @@ pip install torch torchvision Pillow
 python3 -c "import jax; print(jax.devices('tt'))"
 ```
 
-**Expected output:**
+**Expected output (BOS A0 / Blackhole):**
+```
+[TTDevice(id=0, arch=blackhole)]
+```
+
+**Expected output (Wormhole n150/n300):**
 ```
 [TTDevice(id=0, arch=Wormhole_b0)]
 ```
@@ -463,18 +467,42 @@ sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 
 
 ### 7.2 Build TT-MLIR Toolchain (Required Dependency)
 
+> ⚠️ **This is the most complex step.** TT-MLIR is a separate project with its own build
+> process. Expect this step to take **1–3 hours** on a modern workstation.
+
 ```bash
 # Clone the TT-MLIR repository
 git clone https://github.com/tenstorrent/tt-mlir.git
 cd tt-mlir
 
-# Follow the official TT-MLIR build instructions:
-# https://docs.tenstorrent.com/tt-mlir/getting-started.html#setting-up-the-environment-manually
+# Create and activate a Python 3.12 environment for the TT-MLIR build
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip cmake ninja
 
-# After building, set the toolchain directory (adjust path if different):
-export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
+# Configure the TT-MLIR build
+# Downloads LLVM and other dependencies (~2–5 GB on first run)
+cmake -G Ninja -B build \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON
+
+# Build TT-MLIR (takes 1–3 hours depending on hardware)
+cmake --build build
+
+# Install to the system toolchain directory
+sudo cmake --install build --prefix /opt/ttmlir-toolchain
+
+# Deactivate the TT-MLIR build environment and return to the parent directory
+deactivate
 cd ..
+
+# Set the toolchain directory (required by the TT-XLA build — keep this in your shell)
+export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
 ```
+
+> **Note:** The cmake flags above follow the TT-MLIR main-branch build process. If any step
+> fails, consult the up-to-date instructions at:
+> https://docs.tenstorrent.com/tt-mlir/getting-started.html#setting-up-the-environment-manually
 
 ### 7.3 Clone and Build TT-XLA
 
@@ -487,8 +515,10 @@ cd tt-xla
 # This can take several minutes and requires good internet speed
 git submodule update --init --recursive
 
-# Activate the bundled virtual environment
-source venv/activate
+# Create and activate a Python 3.12 virtual environment for the TT-XLA build
+python3.12 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
 
 # Configure the build (Ninja is a fast build system, faster than make)
 cmake -G Ninja -B build
@@ -550,8 +580,6 @@ Before running any Python code, activate the virtual environment:
 source ~/.tt-xla-venv/bin/activate
 ```
 
-### 8.2 How TT-XLA Compiles a PyTorch Model
-
 ### 8.4 Create the ResNet50 Inference Script
 
 Create a new file called `run_resnet50_tt.py` in your current directory.
@@ -564,9 +592,7 @@ nano run_resnet50_tt.py
 > **No ONNX export, no separate conversion step is needed** for PyTorch models.
 > `torch.compile` handles all graph lowering internally.
 
-### 8.3 Create the ResNet50 Inference Script
-
-Create the file `run_resnet50_tt.py`:
+Copy and paste the following code into the file:
 
 ```python
 #!/usr/bin/env python3
@@ -661,7 +687,7 @@ for i in range(top5_prob.size(0)):
     print(f"  {i+1}. {label:<40} {prob:.2f}%")
 ```
 
-### 8.4 Run the Script
+### 8.5 Run the Script
 
 ```bash
 # Make sure your virtual environment is active
@@ -706,7 +732,8 @@ import jax_plugin_tt  # registers the "tt" backend for JAX
 
 # Print all TT devices visible to JAX
 print("TT devices:", jax.devices("tt"))
-# Expected: TT devices: [TTDevice(id=0, arch=Wormhole_b0)]
+# Expected (BOS A0 / Blackhole): TT devices: [TTDevice(id=0, arch=blackhole)]
+# Expected (Wormhole n150/n300): TT devices: [TTDevice(id=0, arch=Wormhole_b0)]
 
 # JIT-compile a simple matrix multiplication to run on the TT card
 @jax.jit
@@ -729,11 +756,11 @@ print("JAX matmul result shape:", result.shape)
 After completing Section 5 (wheel install), you should see:
 
 ```
-# Wormhole cards (n150/n300):
-[TTDevice(id=0, arch=Wormhole_b0)]
-
 # BOS A0 — Blackhole cards (p100a/p150a/p150b):
 [TTDevice(id=0, arch=blackhole)]
+
+# Wormhole cards (n150/n300):
+[TTDevice(id=0, arch=Wormhole_b0)]
 ```
 
 ### 10.2 Full ResNet50 Demo Run
@@ -771,6 +798,9 @@ Downloading: "https://download.pytorch.org/models/resnet50-0676ba61.pth" to ...
 
 ```bash
 $ lspci | grep -i tenstorrent
+# BOS A0 (Blackhole):
+01:00.0 Processing accelerators: Tenstorrent Inc. Blackhole (rev 01)
+# Wormhole:
 01:00.0 Processing accelerators: Tenstorrent Inc. Wormhole (rev 01)
 
 $ ls /dev/tenstorrent/
