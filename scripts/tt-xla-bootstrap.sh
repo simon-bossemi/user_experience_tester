@@ -2,44 +2,44 @@
 # =============================================================================
 # tt-xla-bootstrap.sh — One-command TT-XLA installation and ResNet50 demo
 #
-# Audience: Linux beginners and first-time TT-XLA users
+# Target hardware: BOS A0 (Tenstorrent Blackhole — p100a / p150a / p150b)
+# Audience:        Linux beginners and first-time TT-XLA users
 #
 # Sources:
-#   - https://github.com/tenstorrent/tt-xla
-#   - https://raw.githubusercontent.com/tenstorrent/tt-xla/main/docs/src/getting_started.md
-#   - https://bos-semi.atlassian.net/wiki/spaces/AIMultimed/pages/337346574/TT-XLA+Installation
-#   - https://docs.tenstorrent.com/getting-started/README.html  (Blackhole / BOS A0)
+#   - inputs/AIMultimed-TT-XLA Installation-030426-023800.pdf  (BOS internal guide)
+#   - https://github.com/bos-semi/tt-xla  (branch release/a0)
+#   - https://docs.tenstorrent.com/getting-started/README.html
 #
 # Usage:
 #   chmod +x tt-xla-bootstrap.sh
 #   ./tt-xla-bootstrap.sh
 #
+# The script is idempotent — re-running it skips steps that are already complete:
+#   - Step 4: uses the first available device directory (/dev/bos or /dev/tenstorrent)
+#   - Step 6: reuses the virtual environment if it already exists
+#   - Step 7: skips pip install if pjrt-plugin-tt is already importable
+#   - Step 8: skips pip install if torch is already importable
+#   - Step 9: skips writing the demo script if it already exists
+#   - Step 10: skips the demo run if it previously passed (marker file present)
+#
 # Prerequisites (checked automatically by this script):
 #   - Ubuntu 22.04 or 24.04 LTS (other distros may work with warnings)
-#   - Tenstorrent PCIe card installed and TT driver/firmware already set up
-#     (run the TT-Installer first: https://installer.tenstorrent.com/tt-installer.sh)
+#   - BOS A0 hardware installed and TT driver/firmware set up via the TT-Installer
+#     (see docs/manuals/tt-xla-linux-manual.md Section 4 — run installer first)
 #   - Python 3.11 or 3.12
 #   - Internet connection (to download wheels and pretrained model weights)
-#   - sudo access (for hugepage configuration if needed)
 #
 # What this script does (in order):
 #   1. Detect the Linux distribution and validate Ubuntu/Debian support
 #   2. Check required system tools are present
-#   3. Verify Tenstorrent hardware is detected on the PCIe bus
-#   4. Check kernel module and device files are present
-#   5. Validate hugepages configuration (required by TT-Metal runtime)
+#   3. Verify BOS A0 hardware is detected on the PCIe bus
+#   4. Check kernel module and BOS device files are present
+#   5. Validate hugepages configuration (set by TT-Installer — verify only)
 #   6. Create a Python virtual environment
 #   7. Install the TT-XLA PJRT plugin wheel from Tenstorrent's PyPI index
 #   8. Install PyTorch, torchvision, and demo dependencies
 #   9. Write a ResNet50 demo script to the working directory
-#  10. Run the ResNet50 demo on Tenstorrent hardware
-#
-# Supported hardware:
-#   - Wormhole (n150, n300) — PCIe Gen 3
-#   - BOS A0 / Blackhole (p100a, p150a, p150b) — PCIe Gen 5
-#     BIOS pre-requisites for BOS A0:
-#       * Set "PCIe AER Reporting Mechanism" to "OS First"
-#       * Force PCIe slot speed to Gen 5 (not "Auto")
+#  10. Run the ResNet50 demo on BOS A0 hardware
 # =============================================================================
 
 set -euo pipefail
@@ -65,6 +65,7 @@ step()    { echo -e "\n${CYAN}════════════════�
 VENV_DIR="${HOME}/.tt-xla-venv"
 TT_PYPI_URL="https://pypi.eng.aws.tenstorrent.com/"
 DEMO_SCRIPT="run_resnet50_tt.py"
+DEMO_PASSED_MARKER="${HOME}/.tt-xla-demo-passed"
 PYTHON_MIN_MINOR=11       # Minimum Python 3.x version
 HUGEPAGES_MIN=1           # Minimum number of 1 GB hugepages
 
@@ -151,74 +152,86 @@ fi
 success "Python ${PY_VERSION} found at ${PYTHON_BIN}"
 
 # ── Step 3: Verify Tenstorrent hardware ───────────────────────────────────────
-step "Step 3/10 — Verifying Tenstorrent hardware presence"
+step "Step 3/10 — Verifying BOS A0 hardware presence"
 
-if ! lspci | grep -qi tenstorrent; then
-    error "No Tenstorrent PCIe device found by lspci."
+# Primary check: use PCI vendor ID 1e52 (Tenstorrent) — most reliable method.
+# Fallback: match by product name, in case pciutils maps the vendor differently.
+VENDOR_COUNT=$(lspci -d 1e52: | wc -l)
+NAME_COUNT=$(lspci | grep -ic tenstorrent || true)
+if [[ "${VENDOR_COUNT}" -eq 0 ]] && [[ "${NAME_COUNT}" -eq 0 ]]; then
+    error "No BOS A0 / Tenstorrent PCIe device found."
     error ""
     error "Possible causes:"
-    error "  - The card is not physically installed"
+    error "  - The Blackhole card is not physically installed"
     error "  - The PCIe slot/card has a power issue"
     error "  - The machine has not been rebooted after card installation"
     error ""
-    error "For BOS A0 (Blackhole) cards, also check:"
-    error "  - The 12+4-pin 12V-2x6 power cable is fully connected"
-    error "  - BIOS PCIe slot speed is forced to Gen 5 (not 'Auto')"
-    error "  - The adjacent PCIe slot is empty (airflow for p100a/p150a)"
+    error "BOS A0 (Blackhole) BIOS requirements:"
+    error "  - 12+4-pin 12V-2x6 power cable must be fully connected"
+    error "  - BIOS PCIe slot speed must be forced to Gen 5 (not 'Auto')"
+    error "  - Adjacent PCIe slot must be empty (airflow for p100a/p150a)"
     error ""
-    error "You can also check using the Tenstorrent vendor ID:"
-    error "  lspci -d 1e52:"
-    die "Cannot continue without Tenstorrent hardware. Exiting."
+    error "Manual check: lspci -d 1e52:"
+    die "Cannot continue without BOS A0 hardware. Exiting."
 fi
 
-DEVICE_COUNT=$(lspci | grep -ic tenstorrent || true)
+# Use vendor-ID count as the authoritative count; fall back to name count if needed.
+DEVICE_COUNT=$(( VENDOR_COUNT > 0 ? VENDOR_COUNT : NAME_COUNT ))
 success "Found ${DEVICE_COUNT} Tenstorrent device(s) on PCIe bus:"
 lspci | grep -i tenstorrent | while read -r line; do info "  ${line}"; done
 
-# Detect hardware architecture family (Wormhole vs Blackhole / BOS A0)
+# Detect hardware architecture family (Blackhole/BOS A0 vs Wormhole)
 if lspci | grep -qi blackhole; then
     HW_ARCH="blackhole"
     info "Hardware family: Blackhole (BOS A0) — PCIe Gen 5"
 elif lspci | grep -qi wormhole; then
     HW_ARCH="wormhole"
-    info "Hardware family: Wormhole — PCIe Gen 3"
+    warn "Hardware family: Wormhole detected. This script targets BOS A0 (Blackhole)."
+    warn "The workflow will continue but device paths may differ."
 else
     HW_ARCH="unknown"
     warn "Could not determine hardware architecture from lspci output."
-    warn "Proceeding; verify manually with: jax.devices('tt')"
+    warn "Proceeding as BOS A0; verify manually with: jax.devices('tt')"
 fi
 
 # ── Step 4: Check kernel module and device files ───────────────────────────────
-step "Step 4/10 — Checking kernel driver and /dev/tenstorrent"
+step "Step 4/10 — Checking kernel driver and BOS device files"
 
-if [[ ! -d /dev/tenstorrent ]]; then
-    error "/dev/tenstorrent directory not found."
-    error "This means the tt-kmd kernel module is not loaded."
-    error ""
-    error "The Tenstorrent driver must be installed before running this script."
-    error "Run the official TT-Installer to set up the driver:"
+# BOS A0 exposes devices at /dev/bos/<id>; Wormhole uses /dev/tenstorrent/<id>
+if [[ -d /dev/bos ]]; then
+    DEV_DIR="/dev/bos"
+    success "BOS A0 device directory found: ${DEV_DIR}"
+elif [[ -d /dev/tenstorrent ]]; then
+    DEV_DIR="/dev/tenstorrent"
+    warn "Found /dev/tenstorrent (Wormhole path). BOS A0 uses /dev/bos — verify your hardware."
+    success "Device directory: ${DEV_DIR}"
+else
+    error "No device directory found (/dev/bos or /dev/tenstorrent)."
+    error "This means the tt-kmd kernel module is not loaded or the TT-Installer has not been run."
     error ""
     error "Run the TT-Installer to set up the driver, firmware, and device files:"
     error "  sudo apt-get install -y curl jq"
     error "  /bin/bash -c \"\$(curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh)\""
     error "  sudo reboot"
     error ""
-    if [[ "${HW_ARCH}" == "blackhole" ]]; then
-        error "BOS A0 (Blackhole) additional BIOS requirements before running the installer:"
-        error "  1. Set 'PCIe AER Reporting Mechanism' to 'OS First'"
-        error "  2. Force PCIe slot speed to Gen 5 (not 'Auto')"
-    fi
+    error "BOS A0 BIOS requirements (must be set before running the installer):"
+    error "  1. PCIe AER Reporting Mechanism → 'OS First'"
+    error "  2. PCIe slot speed → Gen 5 (not 'Auto')"
     die "Driver setup required. Exiting."
 fi
 
-DEV_FILES=$(ls /dev/tenstorrent/ 2>/dev/null | wc -l)
+DEV_FILES=$(ls "${DEV_DIR}/" 2>/dev/null | wc -l)
 if [[ "${DEV_FILES}" -eq 0 ]]; then
-    die "/dev/tenstorrent/ directory exists but contains no device files. Re-run the TT-Installer."
+    die "${DEV_DIR}/ directory exists but contains no device files. Re-run the TT-Installer."
 fi
-success "Device files found: $(ls /dev/tenstorrent/ | tr '\n' ' ')"
+success "Device files found: $(ls "${DEV_DIR}/" | tr '\n' ' ')"
 
 # ── Step 5: Validate hugepages ─────────────────────────────────────────────────
 step "Step 5/10 — Validating hugepages configuration"
+
+# Hugepages are configured automatically by the TT-Installer (Section 4 of the manual).
+# If the TT-Installer was run before this script, hugepages should already be set.
+# This step only verifies the current state and warns — it does NOT fail the script.
 
 HP_TOTAL=$(grep -i 'HugePages_Total' /proc/meminfo | awk '{print $2}')
 HP_FREE=$(grep -i 'HugePages_Free' /proc/meminfo | awk '{print $2}')
@@ -227,14 +240,11 @@ info "HugePages_Total: ${HP_TOTAL}"
 info "HugePages_Free:  ${HP_FREE}"
 
 if [[ "${HP_TOTAL}" -lt "${HUGEPAGES_MIN}" ]]; then
-    warn "Hugepages_Total is ${HP_TOTAL}; at least ${HUGEPAGES_MIN} x 1 GB hugepage is required."
-    warn "Attempting to configure hugepages..."
-    echo 4 | sudo tee /proc/sys/vm/nr_hugepages > /dev/null
-    HP_TOTAL=$(grep -i 'HugePages_Total' /proc/meminfo | awk '{print $2}')
-    if [[ "${HP_TOTAL}" -lt "${HUGEPAGES_MIN}" ]]; then
-        die "Failed to configure hugepages. Make sure the system has enough free RAM (>=4 GB)."
-    fi
-    success "Hugepages configured: ${HP_TOTAL} available."
+    warn "HugePages_Total is ${HP_TOTAL} — at least ${HUGEPAGES_MIN} x 1 GB hugepage is recommended."
+    warn "The TT-Installer should have configured hugepages. If it was not run, configure manually:"
+    warn "  sudo sysctl -w vm.nr_hugepages=4"
+    warn "  echo 'vm.nr_hugepages=4' | sudo tee -a /etc/sysctl.conf"
+    warn "Continuing — TT-Metal will report an error at runtime if hugepages are missing."
 else
     success "Hugepages OK: ${HP_TOTAL} total, ${HP_FREE} free."
 fi
@@ -261,42 +271,53 @@ success "pip $(pip --version | awk '{print $2}') ready."
 # ── Step 7: Install TT-XLA PJRT plugin ────────────────────────────────────────
 step "Step 7/10 — Installing TT-XLA PJRT plugin (pjrt-plugin-tt)"
 
-info "Installing pjrt-plugin-tt from Tenstorrent's PyPI index..."
-info "  This downloads the compiled TT-XLA plugin (~300 MB)."
-info "  Source: pip install pjrt-plugin-tt --extra-index-url ${TT_PYPI_URL}"
+if "${VENV_DIR}/bin/python3" -c "import pjrt_plugin_tt" 2>/dev/null; then
+    success "pjrt-plugin-tt is already installed — skipping."
+else
+    info "Installing pjrt-plugin-tt from Tenstorrent's PyPI index..."
+    info "  This downloads the compiled TT-XLA plugin (~300 MB)."
+    info "  Source: pip install pjrt-plugin-tt --extra-index-url ${TT_PYPI_URL}"
 
-pip install pjrt-plugin-tt \
-    --extra-index-url "${TT_PYPI_URL}" \
-    || {
-        error "Failed to install pjrt-plugin-tt."
-        error ""
-        error "Possible causes:"
-        error "  1. No internet connection or firewall blocking ${TT_PYPI_URL}"
-        error "  2. The Tenstorrent PyPI index is temporarily unavailable"
-        error ""
-        error "Alternative: download the wheel from GitHub Releases:"
-        error "  https://github.com/tenstorrent/tt-xla/releases"
-        error "  Then install with: pip install pjrt_plugin_tt-*.whl"
-        die "Installation failed. See above for options."
-    }
-
-success "pjrt-plugin-tt installed."
+    pip install pjrt-plugin-tt \
+        --extra-index-url "${TT_PYPI_URL}" \
+        || {
+            error "Failed to install pjrt-plugin-tt."
+            error ""
+            error "Possible causes:"
+            error "  1. No internet connection or firewall blocking ${TT_PYPI_URL}"
+            error "  2. The Tenstorrent PyPI index is temporarily unavailable"
+            error ""
+            error "Alternative: download the wheel from GitHub Releases:"
+            error "  https://github.com/bos-semi/tt-xla/releases"
+            error "  Then install with: pip install pjrt_plugin_tt-*.whl"
+            die "Installation failed. See above for options."
+        }
+    success "pjrt-plugin-tt installed."
+fi
 
 # ── Step 8: Install PyTorch, torchvision, and demo dependencies ────────────────
 step "Step 8/10 — Installing PyTorch, torchvision, and Pillow"
 
-info "Installing torch and torchvision (CPU wheel — TT device handles compute)..."
-pip install --quiet \
-    "torch" \
-    "torchvision" \
-    "Pillow" \
-    --index-url https://download.pytorch.org/whl/cpu \
-    || die "Failed to install PyTorch/torchvision."
-
-success "PyTorch $(python3 -c 'import torch; print(torch.__version__)') installed."
+if "${VENV_DIR}/bin/python3" -c "import torch" 2>/dev/null; then
+    success "PyTorch is already installed — skipping."
+else
+    info "Installing torch and torchvision (CPU wheel — BOS A0 device handles compute)..."
+    info "Note: Do NOT install torch-xla separately; it is bundled inside pjrt-plugin-tt."
+    pip install --quiet \
+        "torch" \
+        "torchvision" \
+        "Pillow" \
+        --index-url https://download.pytorch.org/whl/cpu \
+        || die "Failed to install PyTorch/torchvision."
+    success "PyTorch $(python3 -c 'import torch; print(torch.__version__)') installed."
+fi
 
 # ── Step 9: Write the ResNet50 demo script ────────────────────────────────────
 step "Step 9/10 — Writing ResNet50 TT-XLA demo script"
+
+if [[ -f "${DEMO_SCRIPT}" ]]; then
+    info "Demo script already exists at $(pwd)/${DEMO_SCRIPT} — reusing."
+else
 
 cat > "${DEMO_SCRIPT}" << 'PYEOF'
 #!/usr/bin/env python3
@@ -388,8 +409,15 @@ PYEOF
 chmod +x "${DEMO_SCRIPT}"
 success "Demo script written to $(pwd)/${DEMO_SCRIPT}"
 
+fi  # end: if demo script not already present
+
 # ── Step 10: Run the ResNet50 demo ────────────────────────────────────────────
-step "Step 10/10 — Running ResNet50 on Tenstorrent hardware"
+step "Step 10/10 — Running ResNet50 on BOS A0 hardware"
+
+if [[ -f "${DEMO_PASSED_MARKER}" ]]; then
+    success "Demo previously passed (marker: ${DEMO_PASSED_MARKER}). Skipping re-run."
+    success "To force a re-run: rm ${DEMO_PASSED_MARKER} && ./tt-xla-bootstrap.sh"
+else
 
 info "Executing: python3 ${DEMO_SCRIPT}"
 info ""
@@ -407,7 +435,7 @@ python3 "${DEMO_SCRIPT}" \
         error "ResNet50 demo failed. See the error output above."
         error ""
         error "Common fixes:"
-        error "  - If 'No TT devices found': check driver with 'ls /dev/tenstorrent/'"
+        error "  - If 'No TT devices found': check driver with 'ls ${DEV_DIR}/'"
         error "  - If 'ImportError: torch_plugin_tt': re-install pjrt-plugin-tt (Step 7)"
         error "  - If 'hugepages error': run 'sudo sysctl -w vm.nr_hugepages=4'"
         error ""
@@ -415,12 +443,18 @@ python3 "${DEMO_SCRIPT}" \
         die "Demo failed."
     }
 
+touch "${DEMO_PASSED_MARKER}"
+info "Demo pass recorded at ${DEMO_PASSED_MARKER}"
+
+fi  # end: if demo not yet passed
+
 # ── Summary ────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║  TT-XLA bootstrap complete!                                  ║${NC}"
+echo -e "${GREEN}║  TT-XLA bootstrap complete! (BOS A0 target)                  ║${NC}"
 echo -e "${GREEN}║                                                              ║${NC}"
 echo -e "${GREEN}║  Hardware:     ${HW_ARCH}${NC}"
+echo -e "${GREEN}║  Device dir:   ${DEV_DIR}${NC}"
 echo -e "${GREEN}║  Virtual env:  ${VENV_DIR}${NC}"
 echo -e "${GREEN}║  Demo script:  $(pwd)/${DEMO_SCRIPT}${NC}"
 echo -e "${GREEN}║                                                              ║${NC}"
@@ -428,5 +462,5 @@ echo -e "${GREEN}║  To reactivate the environment in a new shell:             
 echo -e "${GREEN}║    source ${VENV_DIR}/bin/activate${NC}"
 echo -e "${GREEN}║                                                              ║${NC}"
 echo -e "${GREEN}║  For more examples:                                          ║${NC}"
-echo -e "${GREEN}║    https://github.com/tenstorrent/tt-forge/tree/main/demos  ║${NC}"
+echo -e "${GREEN}║    https://github.com/bos-semi/tt-xla/tree/release/a0/demos ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"

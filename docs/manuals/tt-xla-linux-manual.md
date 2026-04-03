@@ -1,9 +1,9 @@
 # TT-XLA Linux Installation and Usage Manual
 
 **Tool:** TT-XLA (Tenstorrent XLA)  
-**Version:** latest (as of 2026)  
+**Target hardware:** BOS A0 (Tenstorrent Blackhole — p100a / p150a / p150b)  
 **Audience:** Beginners in AI and Linux  
-**Sources:** [GitHub tenstorrent/tt-xla](https://github.com/tenstorrent/tt-xla) · [Official Getting Started](https://raw.githubusercontent.com/tenstorrent/tt-xla/main/docs/src/getting_started.md) · [BOS Internal Tutorial](https://bos-semi.atlassian.net/wiki/spaces/AIMultimed/pages/337346574/TT-XLA+Installation)
+**Sources:** [GitHub bos-semi/tt-xla](https://github.com/bos-semi/tt-xla) · [BOS Internal Tutorial (PDF)](../inputs/AIMultimed-TT-XLA%20Installation-030426-023800.pdf) · [Tenstorrent Getting Started](https://raw.githubusercontent.com/tenstorrent/tt-xla/main/docs/src/getting_started.md)
 
 ---
 
@@ -11,7 +11,7 @@
 
 1. [Overview and Key Concepts](#1-overview-and-key-concepts)
 2. [Prerequisites](#2-prerequisites)
-3. [For BOS A0 (Blackhole) — Hardware and BIOS Setup](#3-for-bos-a0-blackhole--hardware-and-bios-setup)
+3. [BOS A0 (Blackhole) — Hardware and BIOS Setup](#3-bos-a0-blackhole--hardware-and-bios-setup)
 4. [Software Installation — Driver and Kernel Module](#4-software-installation--driver-and-kernel-module)
 5. [Software Installation — Option A: Wheel (Recommended)](#5-software-installation--option-a-wheel-recommended)
 6. [Software Installation — Option B: Docker](#6-software-installation--option-b-docker)
@@ -47,9 +47,9 @@ FX tracing — PyTorch reads your model and builds a computation graph
        ↓
 StableHLO — a standard AI compiler format
        ↓
-TT-MLIR compiler — converts to Tenstorrent chip instructions
+TT-MLIR compiler — converts to BOS A0 chip instructions
        ↓
-Tenstorrent NPU (the AI accelerator card in your PC)
+BOS A0 NPU (the Blackhole AI accelerator card in your workstation)
        ↓
 Result tensor (numbers representing predictions)
 ```
@@ -66,21 +66,25 @@ benchmark model and is available in the `torchvision` Python library with no man
 
 ### 2.1 Hardware
 
-You **must** have a physical Tenstorrent PCIe card installed inside your computer.
-TT-XLA cannot run AI models on CPU or without this card.
+This manual targets **BOS A0** systems — workstations or servers equipped with a Tenstorrent
+**Blackhole** PCIe add-in card (p100a, p150a, or p150b).
 
-| Requirement | Wormhole (n150/n300) | BOS A0 — Blackhole (p100a/p150a/p150b) |
-|-------------|---------------------|----------------------------------------|
-| PCIe card | Wormhole n150 or n300 | Blackhole p100a, p150a, or p150b |
-| PCIe slot | Gen 3 x16 or better | **Gen 5.0 x16** (required; no bifurcation) |
-| Power connector | Standard 8-pin or 6+2 PCIe | **12+4-pin 12V-2x6** (ATX 3.1 certified PSU required) |
-| Adjacent slot | Not required | Leave empty for airflow (p100a/p150a are dual-slot) |
-| RAM | ≥ 32 GB recommended | ≥ 32 GB recommended |
-| Hugepages | Configured by installer | Configured by installer |
+| Requirement | BOS A0 — Blackhole (p100a / p150a / p150b) |
+|-------------|---------------------------------------------|
+| PCIe card | Blackhole p100a, p150a, or p150b |
+| PCIe slot | **Gen 5.0 x16** (no bifurcation; lane-sharing disabled) |
+| Power connector | **12+4-pin 12V-2x6** (ATX 3.1 certified PSU required) |
+| Adjacent PCIe slot | Leave empty — p100a/p150a are dual-slot with active coolers |
+| RAM | ≥ 32 GB recommended |
+| Device path | `/dev/bos/<device_id>` |
 
-> **BOS A0 note:** The Blackhole family (p100a, p150a, p150b) uses PCIe Gen 5.0 and a 12+4-pin
-> power connector. An ATX 3.1 certified power supply is required. Using an older PSU may cause
-> system instability. The p150b uses a passive heatsink and is designed for rack-mounted systems.
+> ⚠️ An **ATX 3.1 certified power supply** is required. Standard 8-pin PCIe power cables are
+> physically incompatible with the 12V-2x6 connector. The p150b uses a passive heatsink and is
+> designed for rack-mounted systems with forced airflow.
+
+> **Wormhole users (n150/n300):** The core Python workflow in Sections 5–9 also works on Wormhole
+> hardware with device path `/dev/tenstorrent/<id>` and PCIe Gen 3. Sections 3 and parts of 6–7
+> that are BOS A0-specific are labelled accordingly.
 
 ### 2.2 Operating System
 
@@ -115,10 +119,9 @@ jq                     # required by TT-Installer (see Section 4)
 
 ---
 
-## 3. For BOS A0 (Blackhole) — Hardware and BIOS Setup
+## 3. BOS A0 (Blackhole) — Hardware and BIOS Setup
 
-> **Note:** This section is specific to **BOS A0** systems using Tenstorrent Blackhole cards
-> (p100a, p150a, p150b). If you are using a Wormhole card (n150, n300), skip to [Section 4](#4-software-installation--driver-and-kernel-module).
+Complete all steps in this section before installing any software.
 
 ### 3.1 Physical Installation
 
@@ -169,16 +172,25 @@ Some motherboards fail to enumerate Blackhole cards when PCIe speed is set to "A
 After completing BIOS setup, boot into Linux and confirm the card is enumerated:
 
 ```bash
+# Option 1 — check by product name:
 lspci | grep -i tenstorrent
-# Expected output for Blackhole:
+# Expected output for BOS A0 (Blackhole):
 # 01:00.0 Processing accelerators: Tenstorrent Inc. Blackhole (rev 01)
 
-# Alternative using Tenstorrent's PCI vendor ID:
+# Option 2 — check by PCI vendor ID (more reliable if driver not yet installed):
 lspci -d 1e52:
+# Expected: at least one line beginning with a bus address
 ```
 
-If no output appears, the card was not detected — recheck power connection, PCIe slot, and BIOS
-speed settings.
+Also confirm the BOS device directory is present after driver install (see Section 4):
+
+```bash
+ls /dev/bos/
+# Expected: 0   (or 0 1 2 … for multi-device setups)
+```
+
+If no output appears from `lspci`, the card was not detected — recheck power connection, PCIe
+slot, and BIOS speed settings.
 
 ### 3.4 Check Firmware LED
 
@@ -191,8 +203,6 @@ If neither is observed, the power cable may not be properly connected.
 ---
 
 ## 4. Software Installation — Driver and Kernel Module
-
-> **Note:** This step applies to all Tenstorrent hardware (Wormhole and Blackhole/BOS A0).
 
 The recommended installation path is the **TT-Installer** script, which automatically installs:
 - `tt-kmd` — the kernel module (driver)
@@ -208,6 +218,15 @@ sudo apt update && sudo apt install -y curl jq
 ```
 
 ### 4.2 Run the TT-Installer
+
+> **Security note:** The one-liner below downloads and immediately executes an installation
+> script. If you prefer to inspect it first, run:
+> ```bash
+> curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh \
+>     -o /tmp/tt-installer.sh
+> less /tmp/tt-installer.sh          # review the script
+> bash /tmp/tt-installer.sh          # then execute it
+> ```
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh)"
@@ -232,24 +251,30 @@ source ~/.tenstorrent-venv/bin/activate
 tt-smi
 ```
 
-**Expected output:** The `tt-smi` interface shows one or more Tenstorrent devices under the
-"Device Information" pane. For a single Blackhole p150a, you will see one device entry.
+**Expected output:** The `tt-smi` interface shows one or more devices under the "Device
+Information" pane. For a single BOS A0 Blackhole p150a, you will see one device entry.
 
-Alternatively, check device files directly:
+Check that the BOS A0 device directory was created:
 
 ```bash
-ls /dev/tenstorrent/
+ls /dev/bos/
 # Expected: 0  (or 0 1 2 ... for multi-card setups)
 ```
 
 ### 4.4 Verify Hugepages
 
+> **Note:** Hugepage configuration is handled automatically by the TT-Installer (see Section 4.2).
+> If you have already run the installer and rebooted, you can skip straight to the verification
+> command below.
+
 ```bash
-grep -i hugepage /proc/meminfo
-# Expected: HugePages_Total should be >= 1
+# Verify hugepages are configured (the TT-Installer should have done this already):
+grep HugePages_Total /proc/meminfo
+# Expected: HugePages_Total:       4   (or any value ≥ 1)
 ```
 
-If `HugePages_Total` is 0, configure manually:
+If — and only if — `HugePages_Total` is 0 and you did **not** use the TT-Installer, configure
+hugepages manually:
 
 ```bash
 sudo sysctl -w vm.nr_hugepages=4
@@ -316,30 +341,15 @@ package is not on the main PyPI server.
 ### 5.3 Install PyTorch and torchvision (for ResNet50)
 
 ```bash
-# Install PyTorch (CPU build sufficient for tracing; TT device handles compute)
+# Install PyTorch and torchvision (CPU build — the TT device handles compute):
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-
-# Install torch-xla (Tenstorrent's fork is bundled inside pjrt-plugin-tt,
-# but if a standalone torch-xla is needed):
-pip install torch-xla
 ```
+
+> **Do not install a standalone `torch-xla` package.** The `pjrt-plugin-tt` wheel already
+> bundles Tenstorrent's fork of `torch-xla` internally. Installing a separate `torch-xla` from
+> PyPI will create a version conflict and may break the TT backend.
 
 ### 5.4 Verify Installation
-
-```bash
-python3 -c "import jax; print(jax.devices('tt'))"
-# Expected for Wormhole:  [TTDevice(id=0, arch=Wormhole_b0)]
-# Expected for BOS A0:    [TTDevice(id=0, arch=blackhole)]
-
-**Why CPU wheel?** The Tenstorrent NPU is the compute target, not a GPU. Installing the CPU
-version of PyTorch saves ~1 GB of unnecessary CUDA libraries.
-
-**Expected output:**
-```
-Successfully installed torch-2.x.x torchvision-0.x.x
-```
-
-### 5.4 Verify the Installation
 
 Run these two checks to confirm everything is working:
 
@@ -350,6 +360,10 @@ python3 -c "import jax; print(jax.devices('tt'))"
 
 **Expected output:**
 ```
+# BOS A0 (Blackhole) — primary target:
+[TTDevice(id=0, arch=blackhole)]
+
+# Wormhole (if applicable):
 [TTDevice(id=0, arch=Wormhole_b0)]
 ```
 
@@ -371,6 +385,11 @@ torch_plugin_tt loaded OK
 
 Use this option if you want a fully isolated environment or you do not want to modify your host
 system. Docker packages everything (OS libraries, Python, TT-XLA) into a container.
+
+> **BOS A0 note:** The BOS internal tutorial prescribes a specific Docker workflow using
+> `ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest` and the BOS A0 device path
+> `/dev/bos/<device_id>`. Follow **Section 6.3** for BOS A0 systems. Sections 6.1–6.2 cover the
+> generic Tenstorrent (Wormhole) path.
 
 ### 6.1 Install Docker
 
@@ -399,11 +418,12 @@ sudo usermod -aG docker "$USER"
 newgrp docker
 ```
 
-### 6.2 Run TT-XLA Docker Container
+### 6.2 Run TT-XLA Docker Container (Wormhole / Generic Tenstorrent)
 
 ```bash
 docker run -it --rm \
     --device /dev/tenstorrent \
+    -v /dev/hugepages:/dev/hugepages \
     -v /dev/hugepages-1G:/dev/hugepages-1G \
     ghcr.io/tenstorrent/tt-xla-slim:latest
 ```
@@ -412,22 +432,126 @@ docker run -it --rm \
 - `-it` — interactive terminal (you get a shell inside the container)
 - `--rm` — automatically delete the container when you exit
 - `--device /dev/tenstorrent` — gives the container access to the Tenstorrent hardware
-- `-v /dev/hugepages-1G:/dev/hugepages-1G` — shares hugepages memory with the container
+- `-v /dev/hugepages:/dev/hugepages` and `-v /dev/hugepages-1G:/dev/hugepages-1G` — share hugepages memory with the container
 - `ghcr.io/tenstorrent/tt-xla-slim:latest` — the container image (downloaded automatically)
 
-### 6.3 Inside the Container
+### 6.3 Run TT-XLA Docker Container (BOS A0 / Blackhole)
+
+The BOS A0 system exposes the device at `/dev/bos/<device_id>` instead of `/dev/tenstorrent/<device_id>`.
+It also uses a dedicated CI image and a long-running named container.
+
+#### Step 1 — Pull the Docker image
 
 ```bash
-# Install Python packages needed for the ResNet50 demo
-pip install torch torchvision Pillow
-
-# Verify the TT device is accessible
-python3 -c "import jax; print(jax.devices('tt'))"
+docker pull ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest
 ```
 
-**Expected output:**
+**Expected output:**  Ends with `Status: Downloaded newer image for ghcr.io/...`
+
+#### Step 2 — Define environment variables on the host
+
+Replace the placeholder values with your own choices:
+
+```bash
+DOCKER_NAME="tt-xla-bos"          # name for the container (any word you like)
+PORT_NUMBER=8080                   # port to forward into the container
+HOME_WORKDIR="/home/$USER/xla-dev" # where your source code lives on the host
+DATA_DIR="/home/$USER/data"        # where your datasets live on the host
+CONTAINER_WORKDIR="/workspace"     # path inside the container
+
+IMAGE_NAME="ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest"
+SHM_SIZE="128g"                    # shared memory size
+
+# BOS A0 device path (replace 0 with your device ID if different):
+DEVICE_PATH="/dev/bos/0"
+
+# Create the workspace directory if it does not yet exist:
+mkdir -p "$HOME_WORKDIR" "$DATA_DIR"
 ```
-[TTDevice(id=0, arch=Wormhole_b0)]
+
+> **How to find your BOS device ID:**
+> ```bash
+> ls /dev/bos/
+> # Expected: 0  (or 0 1 2 … for multi-device setups)
+> ```
+
+#### Step 3 — Launch the Docker container
+
+```bash
+docker run -itd \
+    --name $DOCKER_NAME \
+    -p $PORT_NUMBER:$PORT_NUMBER \
+    -v $HOME_WORKDIR:$CONTAINER_WORKDIR \
+    -v $DATA_DIR:/data \
+    -v /dev/hugepages:/dev/hugepages \
+    -v /dev/hugepages-1G:/dev/hugepages-1G \
+    --device $DEVICE_PATH:$DEVICE_PATH \
+    --shm-size $SHM_SIZE \
+    --cap-add ALL \
+    --ipc=host \
+    --restart unless-stopped \
+    $IMAGE_NAME bash
+```
+
+**What the key flags do:**
+- `-itd` — interactive + detached (runs in background; you attach later)
+- `--name $DOCKER_NAME` — assigns a memorable name for `docker exec`
+- `-v $HOME_WORKDIR:$CONTAINER_WORKDIR` — mounts your workspace into the container
+- `--device $DEVICE_PATH:$DEVICE_PATH` — passes the BOS A0 device into the container
+- `--shm-size 128g` — large shared memory needed by TT-Metal kernels
+- `--cap-add ALL` — required for low-level device access
+- `--ipc=host` — shares host IPC namespace (needed for inter-process communication)
+- `--restart unless-stopped` — auto-restarts the container after reboots
+
+**Expected output:** A 64-character container ID (hash), e.g.:
+```
+7f3a2b1c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a
+```
+
+#### Step 4 — Connect to the running container
+
+```bash
+docker exec -it $DOCKER_NAME bash
+```
+
+You will get a shell prompt inside the container.
+
+#### Step 5 — Set environment variables inside the container
+
+Add these lines to `~/.bashrc` inside the container so they persist across sessions:
+
+```bash
+cat >> ~/.bashrc << 'EOF'
+export TT_XLA_RUNTIME_ROOT=/workspace/xla-dev/tt-xla
+export PROJECT_SOURCE_DIR=/workspace/xla-dev/tt-xla
+export TT_MLIR_RUNTIME_ROOT=$TT_XLA_RUNTIME_ROOT/third_party/ttmlir/src/tt-mlir
+export TT_METAL_RUNTIME_ROOT=$TT_MLIR_RUNTIME_ROOT/third_party/ttmetal/src/tt-metal
+export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
+EOF
+
+# Apply immediately:
+source ~/.bashrc
+```
+
+**What each variable does:**
+| Variable | Purpose |
+|----------|---------|
+| `TT_XLA_RUNTIME_ROOT` | Root of the cloned `tt-xla` repository |
+| `PROJECT_SOURCE_DIR` | Same as above (some scripts use this alias) |
+| `TT_MLIR_RUNTIME_ROOT` | Root of the `tt-mlir` submodule inside tt-xla |
+| `TT_METAL_RUNTIME_ROOT` | Root of the `tt-metal` submodule inside tt-mlir |
+| `TTMLIR_TOOLCHAIN_DIR` | Where the pre-built LLVM toolchain lives |
+
+### 6.4 Inside the Container — Verification
+
+```bash
+# Verify the BOS device is accessible inside the container
+ls /dev/bos/
+# Expected: 0
+
+# Verify hugepages are available:
+grep HugePages_Total /proc/meminfo
+# Expected: HugePages_Total:   4   (or any value ≥ 1)
 ```
 
 ---
@@ -435,8 +559,48 @@ python3 -c "import jax; print(jax.devices('tt'))"
 ## 7. Software Installation — Option C: Build from Source
 
 > ⚠️ **Use this option only if you are developing or modifying TT-XLA itself.**  
-> Building from source requires Ubuntu 24.04 and takes **30–90 minutes** depending on your
-> system. Most users should use Option A (wheel install).
+> Building from source requires Ubuntu 22.04 or 24.04 and takes **30–90 minutes** depending on
+> your system. Most users should use Option A (wheel install).
+
+There are two build paths depending on your hardware:
+
+| Path | Hardware | Repository |
+|------|----------|-----------|
+| **BOS A0** | Blackhole (p100a/p150a/p150b) | Private BOS repos — SSH access required |
+| **Tenstorrent** | Wormhole (n150/n300) | Public Tenstorrent GitHub repos |
+
+### 7.0 Prerequisites for BOS A0 — GitHub SSH Access
+
+The BOS A0 build requires accessing private repositories on GitHub (`bos-semi` org). SSH
+authentication is required.
+
+```bash
+# Check if you already have SSH access:
+ssh -T git@github.com
+# If configured correctly, you will see:
+# Hi <username>! You've successfully authenticated, but GitHub does not provide shell access.
+```
+
+If the check fails, create and register an SSH key:
+
+```bash
+# Generate a new SSH key (press Enter to accept the default file path):
+ssh-keygen -t ed25519 -C "your_email@example.com"
+
+# Display your public key:
+cat ~/.ssh/id_ed25519.pub
+# Copy the output
+
+# Start the SSH agent and add your key:
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/id_ed25519
+
+# Then add the key to your GitHub account:
+# GitHub → Settings → SSH and GPG keys → New SSH key → paste the output
+
+# Verify the connection:
+ssh -T git@github.com
+```
 
 ### 7.1 System Dependencies
 
@@ -444,7 +608,7 @@ python3 -c "import jax; print(jax.devices('tt'))"
 sudo apt-get update
 sudo apt-get install -y \
     git cmake ninja-build \
-    clang-20 gcc-13 g++-13 \
+    clang gcc g++ \
     python3.12 python3.12-venv python3.12-dev \
     protobuf-compiler libprotobuf-dev \
     ccache \
@@ -454,58 +618,225 @@ sudo apt-get install -y \
     libnsl-dev
 ```
 
-Set Clang 20 as the system default (required by the build system):
+> **Python 3.12 note:** The TT-MLIR toolchain requires Python 3.12. If `python3.12` is not
+> available in your environment, install it directly:
+> ```bash
+> sudo apt-get install -y python3.12 python3.12-venv
+> ```
+> The symlink workaround `ln -s /usr/bin/python3.12 /usr/bin/python3.11` shown in some guides
+> is **not recommended** — it will break any script or tool that genuinely requires Python 3.11.
+> Install 3.12 natively and reference it explicitly (`python3.12 ...`).
+
+### 7.2 Clone Required Repositories
+
+Create a workspace and clone the repositories. Use the **BOS A0** path for Blackhole systems.
+
+#### For BOS A0 (Blackhole)
 
 ```bash
-sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100
-sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100
+# Create workspace directory
+mkdir -p /workspace/xla-dev && cd /workspace/xla-dev
+
+# Clone the BOS-forked TT-MLIR (toolchain — develop branch):
+git clone --branch develop git@github.com:bos-semi/tt-mlir.git
+
+# Clone the BOS-forked TT-XLA (A0 release branch):
+git clone --branch release/a0 git@github.com:bos-semi/tt-xla.git
 ```
 
-### 7.2 Build TT-MLIR Toolchain (Required Dependency)
+#### For Tenstorrent (Wormhole / public upstream)
 
 ```bash
-# Clone the TT-MLIR repository
+mkdir -p /workspace/xla-dev && cd /workspace/xla-dev
+
 git clone https://github.com/tenstorrent/tt-mlir.git
-cd tt-mlir
-
-# Follow the official TT-MLIR build instructions:
-# https://docs.tenstorrent.com/tt-mlir/getting-started.html#setting-up-the-environment-manually
-
-# After building, set the toolchain directory (adjust path if different):
-export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
-cd ..
+git clone https://github.com/tenstorrent/tt-xla.git
 ```
 
-### 7.3 Clone and Build TT-XLA
+### 7.3 Build TT-MLIR Toolchain (Required Dependency)
+
+This step builds the LLVM/MLIR toolchain that TT-XLA depends on.
 
 ```bash
-# Clone the TT-XLA repository
-git clone https://github.com/tenstorrent/tt-xla.git
-cd tt-xla
+cd /workspace/xla-dev/tt-mlir
 
-# Download all required submodules (tt-metal, third-party libs, etc.)
-# This can take several minutes and requires good internet speed
+export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
+mkdir -p $TTMLIR_TOOLCHAIN_DIR
+
+# Configure the toolchain build:
+cmake -B env/build env \
+    -DCMAKE_C_COMPILER=clang \
+    -DCMAKE_CXX_COMPILER=clang++
+
+# Build (takes 20–40 minutes):
+cmake --build env/build
+```
+
+**Expected output:** Ends with `[100%] Built target ...` — no errors.
+
+If you see build failures, see [Section 11 — Troubleshooting](#11-troubleshooting) (Build Tools
+TT-MLIR and SFPI Toolchain sections).
+
+Activate the toolchain environment (required before building TT-XLA):
+
+```bash
+source env/activate
+```
+
+> **What `source env/activate` does:** The `cmake --build env/build` step above generates an
+> `env/activate` shell script inside the `tt-mlir` directory. Running `source env/activate` sets
+> up the LLVM/MLIR environment variables (compilers, linkers, library paths) needed to compile
+> TT-XLA. You must run this in every new shell session before running any `cmake` or `ninja`
+> commands in the TT-XLA build.
+
+```bash
+# Confirm Python 3.12 is active:
+python --version
+# Expected: Python 3.12.x
+```
+
+### 7.4 Build TT-XLA
+
+#### For BOS A0 (Blackhole)
+
+Set environment variables first (if not already in `~/.bashrc`):
+
+```bash
+export TT_XLA_RUNTIME_ROOT=/workspace/xla-dev/tt-xla
+export PROJECT_SOURCE_DIR=/workspace/xla-dev/tt-xla
+export TT_MLIR_RUNTIME_ROOT=$TT_XLA_RUNTIME_ROOT/third_party/ttmlir/src/tt-mlir
+export TT_METAL_RUNTIME_ROOT=$TT_MLIR_RUNTIME_ROOT/third_party/ttmetal/src/tt-metal
+export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
+```
+
+```bash
+cd $TT_XLA_RUNTIME_ROOT
+
+# Fetch all submodules (tt-metal, third-party libs, etc. — may take several minutes):
 git submodule update --init --recursive
 
-# Activate the bundled virtual environment
+# Activate the bundled virtual environment:
 source venv/activate
+```
 
-# Configure the build (Ninja is a fast build system, faster than make)
-cmake -G Ninja -B build
+> **What `source venv/activate` does:** The `tt-xla` repository ships a `venv/activate`
+> shell script (not a standard Python venv activation). Running it:
+> 1. Creates a Python 3.12 virtual environment at `$TT_XLA_RUNTIME_ROOT/venv/` if it does not
+>    exist yet (requires `python3.12` to be installed — see Section 7.1).
+> 2. Activates that virtual environment for the current shell session.
+> 3. Sets `PYTHONPATH` and other variables needed by TT-XLA's test runner and build system.
+>
+> You must run `source venv/activate` **after** each `source env/activate` from the TT-MLIR
+> toolchain step, and in every new shell session before running `pytest` or Python tools.
 
-# Build everything (this step takes 30–90 minutes)
+# Configure the BOS A0 build:
+cmake -G Ninja -B build \
+    -DTT_MLIR_VERSION=develop \
+    -DUSE_BOS_SEMI_TTMLIR=ON \
+    -DUSE_CUSTOM_TT_MLIR_VERSION=ON \
+    -DUSE_BOS_REPO=ON
+
+# Build:
 cmake --build build
 ```
 
-### 7.4 Verify Source Build
+> **Optional extra build flags for BOS A0:**
+> ```bash
+> cmake -G Ninja -B build \
+>     -DTT_MLIR_VERSION=develop \
+>     -DUSE_BOS_SEMI_TTMLIR=ON \
+>     -DUSE_CUSTOM_TT_MLIR_VERSION=ON \
+>     -DUSE_BOS_REPO=ON \
+>     -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON \
+>     -DTTMLIR_ENABLE_PERF_TRACE=ON \
+>     -DTTXLA_ENABLE_TOOLS=ON
+> ```
+>
+> **Convenient aliases for TT-MLIR tools:**
+> ```bash
+> alias ttmlir-opt='$TT_MLIR_RUNTIME_ROOT/build/bin/ttmlir-opt'
+> alias ttmlir-translate='$TT_MLIR_RUNTIME_ROOT/build/bin/ttmlir-translate'
+> ```
+
+> ⚠️ **Known BOS A0 build issue in `core_assignment.cpp`:** When using `tt-metal-e2`, the build
+> may fail with unused-parameter errors. Apply the following fix manually:
+>
+> ```bash
+> # Open the file in a text editor:
+> nano $TT_METAL_RUNTIME_ROOT/tt_metal/common/core_assignment.cpp
+> ```
+>
+> Inside the function `get_optimal_dram_to_physical_worker_assignment(...)`, at lines 159–165,
+> add `[[maybe_unused]]` before each parameter declaration:
+>
+> ```cpp
+> [[maybe_unused]] const std::vector<CoreCoord>& dram_phy_coords,
+> [[maybe_unused]] uint32_t full_grid_size_x,
+> [[maybe_unused]] uint32_t full_grid_size_y,
+> [[maybe_unused]] std::vector<uint32_t> worker_phy_x,
+> [[maybe_unused]] std::vector<uint32_t> worker_phy_y
+> ```
+>
+> Also comment out the two debug log lines at lines 198–199:
+> ```cpp
+> // log_info(tt::LogMetal, "Dram Interface Workers: {}", full_grid_size_x);
+> // log_info(tt::LogMetal, "Dram Interface Workers: {}", worker_phy_x);
+> ```
+>
+> Then commit the fix and rebuild:
+> ```bash
+> cd $TT_METAL_RUNTIME_ROOT
+> git add tt_metal/common/core_assignment.cpp
+> git commit -m "resolve"
+> cd $TT_XLA_RUNTIME_ROOT
+> cmake --build build
+> ```
+
+#### For Tenstorrent (Wormhole / public upstream)
+
+```bash
+cd /workspace/xla-dev/tt-xla
+git submodule update --init --recursive
+source venv/activate
+
+cmake -G Ninja -B build
+cmake --build build
+```
+
+#### Activate the build on every new session
+
+Add these lines to `~/.bashrc` so the build is usable in new terminal sessions:
+
+```bash
+echo 'source $TT_XLA_RUNTIME_ROOT/venv/activate' >> ~/.bashrc
+```
+
+#### (Optional) Debug build
+
+```bash
+cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+```
+
+### 7.5 Run Tests
+
+After a successful build, validate TT-XLA with the ResNet50 benchmark test:
+
+```bash
+pytest $TT_XLA_RUNTIME_ROOT/tests/benchmark/test_vision.py::test_resnet50 -sv
+```
+
+**Expected output:** Ends with `PASSED` and displays inference results.
+
+### 7.6 Verify Source Build
 
 ```bash
 python3 -c "import jax; print(jax.devices('tt'))"
-# Expected for Wormhole:  [TTDevice(id=0, arch=Wormhole_b0)]
-# Expected for BOS A0:    [TTDevice(id=0, arch=blackhole)]
+# Expected for BOS A0:     [TTDevice(id=0, arch=blackhole)]
+# Expected for Wormhole:   [TTDevice(id=0, arch=Wormhole_b0)]
 ```
 
-### 7.5 (Optional) Build the Wheel
+### 7.7 (Optional) Build the Wheel
 
 ```bash
 cd python_package
@@ -550,8 +881,6 @@ Before running any Python code, activate the virtual environment:
 source ~/.tt-xla-venv/bin/activate
 ```
 
-### 8.2 How TT-XLA Compiles a PyTorch Model
-
 ### 8.4 Create the ResNet50 Inference Script
 
 Create a new file called `run_resnet50_tt.py` in your current directory.
@@ -564,9 +893,7 @@ nano run_resnet50_tt.py
 > **No ONNX export, no separate conversion step is needed** for PyTorch models.
 > `torch.compile` handles all graph lowering internally.
 
-### 8.3 Create the ResNet50 Inference Script
-
-Create the file `run_resnet50_tt.py`:
+### 8.5 ResNet50 Inference Script
 
 ```python
 #!/usr/bin/env python3
@@ -661,7 +988,7 @@ for i in range(top5_prob.size(0)):
     print(f"  {i+1}. {label:<40} {prob:.2f}%")
 ```
 
-### 8.4 Run the Script
+### 8.6 Run the Script
 
 ```bash
 # Make sure your virtual environment is active
@@ -769,11 +1096,13 @@ Downloading: "https://download.pytorch.org/models/resnet50-0676ba61.pth" to ...
 
 ### 10.3 Hardware Detection
 
+For **BOS A0 (Blackhole)** — the primary target:
+
 ```bash
 $ lspci | grep -i tenstorrent
-01:00.0 Processing accelerators: Tenstorrent Inc. Wormhole (rev 01)
+01:00.0 Processing accelerators: Tenstorrent Inc. Blackhole (rev 01)
 
-$ ls /dev/tenstorrent/
+$ ls /dev/bos/
 0
 
 $ grep HugePages_Total /proc/meminfo
@@ -786,14 +1115,16 @@ HugePages_Total:       4
 
 ### Problem: `No TT devices found` or `jax.devices('tt')` returns `[]`
 
-1. Verify the kernel module is loaded:
+1. Verify the kernel module is loaded and BOS device directory exists:
    ```bash
    lsmod | grep tt
-   ls /dev/tenstorrent/
+   ls /dev/bos/
    ```
 2. Re-run the TT-Installer:
    ```bash
-   /bin/bash -c "$(curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh)"
+   curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh \
+       -o /tmp/tt-installer.sh
+   bash /tmp/tt-installer.sh
    sudo reboot
    ```
 3. Check hugepages:
@@ -826,22 +1157,23 @@ lsmod | grep tenstorrent
 # Expected: tenstorrent  131072  0
 # If nothing: the driver is not loaded
 
-# 2. Do device files exist?
-ls /dev/tenstorrent/
+# 2. Do BOS device files exist?
+ls /dev/bos/
 # Expected: 0
 # If "No such file or directory": driver not installed
 
 # 3. Is the card visible on the PCIe bus?
-lspci | grep -i tenstorrent
+lspci -d 1e52:
 # Expected: line starting with a bus address
 ```
 
 **Fix:**
 ```bash
-# Re-run the TT-Installer
-curl -L https://installer.tenstorrent.com/tt-installer.sh -o /tmp/tt-installer.sh
-chmod +x /tmp/tt-installer.sh
-sudo /tmp/tt-installer.sh
+# Re-run the TT-Installer (inspect first, then execute):
+sudo apt-get install -y curl jq
+curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh \
+    -o /tmp/tt-installer.sh
+bash /tmp/tt-installer.sh
 sudo reboot
 ```
 
@@ -888,7 +1220,16 @@ top -b -n 1 | head -20
 [TT-Metal] Failed to allocate hugepages
 ```
 
-**Fix:**
+> **Note:** If you ran the TT-Installer (Section 4.2) and rebooted, hugepages should already be
+> configured. Run the verification command first before making any changes:
+
+```bash
+# Quick check (should show ≥ 1):
+grep HugePages_Total /proc/meminfo
+```
+
+If the value is 0, configure hugepages:
+
 ```bash
 # Check current hugepages count
 cat /proc/sys/vm/nr_hugepages
@@ -903,8 +1244,6 @@ grep HugePages_Total /proc/meminfo
 # Make permanent
 echo 'vm.nr_hugepages=4' | sudo tee -a /etc/sysctl.conf
 ```
-
----
 
 ### Problem: `clang: error: unknown argument: '-march=...'` (build from source only)
 
@@ -941,45 +1280,139 @@ cmake --build build
 ### Problem: Docker — device not found inside container
 
 ```bash
-# Verify the device exists on the host first
+# For Wormhole: verify the device exists on the host first
 ls /dev/tenstorrent/
 # Expected: 0
 
 # Re-run the container with the correct flag
 docker run -it --rm --device /dev/tenstorrent \
+    -v /dev/hugepages:/dev/hugepages \
     -v /dev/hugepages-1G:/dev/hugepages-1G \
     ghcr.io/tenstorrent/tt-xla-slim:latest
 
-# ⚠️ Do NOT use --device /dev/tenstorrent/0 (with device number)
+# ⚠️ Do NOT use --device /dev/tenstorrent/0 (with device number) — use the directory
 ```
+
+For **BOS A0**, the device path is `/dev/bos/<device_id>`:
+
+```bash
+ls /dev/bos/
+# Expected: 0
+
+# Use /dev/bos/0 explicitly in the docker run command:
+docker run -it --rm --device /dev/bos/0:/dev/bos/0 \
+    -v /dev/hugepages:/dev/hugepages \
+    -v /dev/hugepages-1G:/dev/hugepages-1G \
+    ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest bash
+```
+
+---
+
+### Problem (BOS A0 build): GitHub SSH authentication fails
+
+```bash
+ssh -T git@github.com
+# Permission denied (publickey).
+```
+
+**Fix:** Generate and register an SSH key — see [Section 7.0](#70-prerequisites-for-bos-a0--github-ssh-access).
+
+---
+
+### Problem (BOS A0 build): SFPI toolchain mismatch
+
+**Symptoms:** Build fails with SFPI-related errors.
+
+**Fix:**
+```bash
+$TT_METAL_RUNTIME_ROOT/install_dependencies.sh --sfpi
+```
+
+Then re-run the build:
+```bash
+cd $TT_XLA_RUNTIME_ROOT
+cmake --build build
+```
+
+---
+
+### Problem (BOS A0 build): `setuptools` version too high when building TT-MLIR tools
+
+**Symptoms:** Error referencing `setuptools` version incompatibility after building TT-MLIR tools.
+
+**Fix:**
+```bash
+python -m pip install --force-reinstall "setuptools<82"
+```
+
+Then rebuild the affected tools.
+
+---
+
+### Problem (BOS A0 build): Python version mismatch during source build
+
+The TT-MLIR toolchain requires Python 3.12. If the environment activates a different version:
+
+```bash
+# Check which Python is active:
+python --version
+
+# If not 3.12, install it directly:
+sudo apt-get install -y python3.12 python3.12-venv
+
+# Re-activate the toolchain environment specifying 3.12:
+python3.12 -m venv /opt/ttmlir-toolchain/venv
+
+# Then rebuild:
+cmake --build env/build
+```
+
+> **Note:** Do not create a symlink from `python3.11` to `python3.12`. This will break any
+> tool or script that genuinely requires Python 3.11. Install 3.12 natively instead.
+
+---
+
+### Problem (BOS A0 build): `core_assignment.cpp` unused-parameter compile error
+
+See [Section 7.4 — Known BOS A0 build issue](#74-build-tt-xla) for the full fix with the
+`[[maybe_unused]]` annotations and debug log comments.
 
 ---
 
 ## 12. Replay Checklist
 
-Use this checklist to verify a fresh install from scratch.
+Use this checklist to verify a fresh BOS A0 install from scratch.
 
-### For all hardware (Wormhole and BOS A0 / Blackhole)
+### Hardware and driver (BOS A0)
 
-- [ ] Tenstorrent PCIe card is physically installed and detected (`lspci | grep -i tenstorrent`)
-- [ ] `ls /dev/tenstorrent/` shows at least one device file
-- [ ] Hugepages are configured (`grep HugePages_Total /proc/meminfo` ≥ 1)
+- [ ] ATX 3.1 certified PSU connected with 12+4-pin 12V-2x6 cable
+- [ ] Adjacent PCIe slot is empty (for airflow — p100a/p150a)
+- [ ] BIOS: PCIe AER Reporting Mechanism set to "OS First"
+- [ ] BIOS: PCIe slot speed forced to Gen 5 (not "Auto")
+- [ ] Card power LED is lit and fan spins (p100a/p150a)
+- [ ] `lspci -d 1e52:` shows a Tenstorrent/Blackhole device entry
+- [ ] TT-Installer completed successfully and system rebooted
+- [ ] `ls /dev/bos/` shows at least one device file
+- [ ] `tt-smi` shows the Blackhole device in the Device Information pane
+- [ ] `grep HugePages_Total /proc/meminfo` shows ≥ 1
+
+### Python wheel install (Option A)
+
 - [ ] Python 3.11 or 3.12 virtual environment created and activated
 - [ ] `pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.com/` succeeds
-- [ ] `python3 -c "import jax; print(jax.devices('tt'))"` shows a TT device
-- [ ] `pip install torch torchvision` succeeds
+- [ ] `python3 -c "import jax; print(jax.devices('tt'))"` returns `arch=blackhole`
+- [ ] `pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu` succeeds
+- [ ] **No** standalone `torch-xla` installed (bundled in `pjrt-plugin-tt`)
 - [ ] `python3 -c "import torch_plugin_tt; print('OK')"` succeeds
 - [ ] ResNet50 smoke test runs without errors: `python run_resnet50_tt.py`
 - [ ] Output shape is `torch.Size([1, 1000])`
 - [ ] (Optional) JAX matmul test passes
 
-### Additional checks for BOS A0 (Blackhole only)
+### Build-from-source (Option C — BOS A0)
 
-- [ ] ATX 3.1 certified PSU connected with 12+4-pin 12V-2x6 cable
-- [ ] Adjacent PCIe slot is empty (for airflow)
-- [ ] BIOS: PCIe AER Reporting Mechanism set to "OS First"
-- [ ] BIOS: PCIe slot speed forced to Gen 5 (not "Auto")
-- [ ] Card power LED is lit and fan spins (p100a/p150a)
-- [ ] `lspci -d 1e52:` shows a Tenstorrent device entry
-- [ ] `tt-smi` shows the Blackhole device in the Device Information pane
-- [ ] `jax.devices('tt')` returns `arch=blackhole`
+- [ ] GitHub SSH access confirmed (`ssh -T git@github.com` shows your username)
+- [ ] Both `bos-semi/tt-mlir` (branch `develop`) and `bos-semi/tt-xla` (branch `release/a0`) cloned
+- [ ] TT-MLIR toolchain built and activated (`source env/activate; python --version` shows 3.12)
+- [ ] `cmake -G Ninja -B build -DUSE_BOS_SEMI_TTMLIR=ON -DUSE_BOS_REPO=ON ...` completes without errors
+- [ ] `cmake --build build` succeeds (apply `core_assignment.cpp` fix if needed)
+- [ ] `pytest tests/benchmark/test_vision.py::test_resnet50 -sv` passes
