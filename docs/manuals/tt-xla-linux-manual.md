@@ -82,21 +82,41 @@ lspci                  # to verify hardware detection
 
 ## 3. Hardware Setup
 
-> **Note:** This step requires physical Tenstorrent hardware installed in your machine.
+> **Note:** This step requires physical accelerator hardware installed in your machine.
 > Skip if testing in a containerised environment that already has hardware access configured.
 
 ### 3.1 Verify Hardware Detection
 
 ```bash
+# Tenstorrent-branded systems:
 lspci | grep -i tenstorrent
-# Expected output example:
+
+# BOS Eagle systems may enumerate under the BOS driver instead:
+lspci -nn | grep -E 'tenstorrent|16c3:abcd'
+lspci -nn -s 01:00.0 -vv   # example slot; replace with your device BDF
+
+# Expected examples:
 # 01:00.0 Processing accelerators: Tenstorrent Inc. Wormhole (rev 01)
+# 01:00.0 Co-processor [0b40]: Synopsys, Inc. DWC_usb3 / PCIe bridge [16c3:abcd]
+#   Kernel driver in use: bos
 ```
 
 ### 3.2 Install TT Kernel Module Driver
 
-The recommended way is via the **TT-Installer** script, which installs the kernel module (tt-kmd),
-configures hugepages, and sets up the TT-SMI management utility.
+The recommended way is via the **TT-Installer** script on Tenstorrent-branded systems, which installs
+the kernel module (tt-kmd), configures hugepages, and sets up the TT-SMI management utility.
+
+On BOS Eagle systems, the device may already be bound to the `bos` kernel driver instead of
+`tt-kmd`. In that case, verify the BOS driver path before attempting to reinstall drivers:
+
+```bash
+lspci -nn -s 01:00.0 -vv
+ls /sys/class/bos
+ls /dev/bos/
+```
+
+If `/sys/class/bos` exists but `/dev/bos/` does not, the PCIe device is enumerated but the BOS
+device node path is incomplete. Resolve that first before expecting TT-XLA runtime to see chips.
 
 ```bash
 # Download the official installer
@@ -113,9 +133,14 @@ sudo /tmp/tt-installer.sh
 
 ```bash
 sudo reboot
-# After reboot:
+
+# After reboot on Tenstorrent systems:
 ls /dev/tenstorrent/
 # Expected: /dev/tenstorrent/0  (or multiple entries for multi-card setups)
+
+# After reboot on BOS Eagle systems:
+ls /dev/bos/
+# Expected: /dev/bos/0  (or multiple entries for multi-card setups)
 ```
 
 ### 3.4 Verify Hugepages
@@ -161,16 +186,22 @@ This installs:
 - `torch_plugin_tt` — thin PyTorch/XLA wrapper
 - `tt-metal` — runtime kernels and dependencies
 
-### 4.3 Install PyTorch and torchvision (for ResNet50)
+### 4.3 Install a TT-XLA-Compatible PyTorch Pair (for ResNet50)
+
+Do **not** run an unpinned `pip install torch torchvision` after installing `pjrt-plugin-tt`.
+That can upgrade `torch` beyond the `torch-xla` ABI expected by the TT-XLA wheel.
+
+For `pjrt-plugin-tt==0.9.0`, the working pair observed in Linux validation was:
 
 ```bash
-# Install PyTorch (CPU build sufficient for tracing; TT device handles compute)
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-
-# Install torch-xla (Tenstorrent's fork is bundled inside pjrt-plugin-tt,
-# but if a standalone torch-xla is needed):
-pip install torch-xla
+pip install --force-reinstall \
+    torch==2.9.0+cpu \
+    torchvision==0.24.0+cpu \
+    --index-url https://download.pytorch.org/whl/cpu
 ```
+
+Do **not** install a separate standalone `torch-xla` on top of this path unless you are intentionally
+overriding the version bundled with `pjrt-plugin-tt`.
 
 ### 4.4 Verify Installation
 
@@ -180,6 +211,10 @@ python3 -c "import jax; print(jax.devices('tt'))"
 
 python3 -c "import torch_plugin_tt; print('torch_plugin_tt loaded OK')"
 ```
+
+If `jax.devices('tt')` fails with `No chips detected in the cluster`, the Python installation is
+present but the runtime still cannot see a usable device. On BOS Eagle systems, check `/sys/class/bos`
+and `/dev/bos/` before troubleshooting the Python packages further.
 
 ---
 
@@ -214,6 +249,8 @@ docker run -it --rm \
 
 > **Important:** Pass `--device /dev/tenstorrent` (the directory), not individual numbered devices
 > like `/dev/tenstorrent/0`. Using specific device numbers causes fatal errors at runtime.
+
+On BOS Eagle systems, adapt the device path to `/dev/bos` once the BOS device nodes exist.
 
 ### 5.3 Inside the Container
 
@@ -530,6 +567,37 @@ source ~/.tt-xla-venv/bin/activate
 pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.com/
 ```
 
+### `torch_xla` / `torch_plugin_tt` import fails with undefined symbols
+
+This usually means `torch` was upgraded beyond the version expected by the installed TT-XLA wheel.
+
+```bash
+source ~/.tt-xla-venv/bin/activate
+pip install --force-reinstall \
+    torch==2.9.0+cpu \
+    torchvision==0.24.0+cpu \
+    --index-url https://download.pytorch.org/whl/cpu
+pip install --force-reinstall --no-deps \
+    pjrt-plugin-tt==0.9.0 \
+    --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+```
+
+### `No chips detected in the cluster`
+
+The TT-XLA Python packages are installed, but runtime device discovery still failed.
+
+```bash
+# Tenstorrent path:
+ls /dev/tenstorrent/
+
+# BOS Eagle path:
+ls /sys/class/bos
+ls /dev/bos/
+```
+
+If `/sys/class/bos` exists but `/dev/bos/` is missing, fix the BOS driver/device-node setup before
+retrying `jax.devices('tt')`.
+
 ### `clang: error: unknown argument: '-march=...'` (build from source)
 
 Ensure `clang-20` is installed and is the default clang:
@@ -572,19 +640,21 @@ docker run -it --rm --device /dev/tenstorrent ...
 # Do NOT use --device /dev/tenstorrent/0 (specific number)
 ```
 
+On BOS Eagle systems, use `/dev/bos` instead once the BOS device nodes exist.
+
 ---
 
 ## 11. Replay Checklist
 
 Use this checklist to verify a fresh install from scratch:
 
-- [ ] Tenstorrent PCIe card is physically installed and detected by `lspci`
-- [ ] `ls /dev/tenstorrent/` shows at least one device file
+- [ ] Accelerator PCIe device is physically installed and detected by `lspci`
+- [ ] `ls /dev/tenstorrent/` or `ls /dev/bos/` shows at least one device file
 - [ ] Hugepages are configured (`grep HugePages_Total /proc/meminfo` > 0)
 - [ ] Python 3.11 or 3.12 virtual environment created and activated
 - [ ] `pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.com/` succeeds
 - [ ] `python3 -c "import jax; print(jax.devices('tt'))"` shows TT devices
-- [ ] `pip install torch torchvision` succeeds
+- [ ] A compatible `torch`/`torchvision` pair is installed
 - [ ] `python3 -c "import torch_plugin_tt; print('OK')"` succeeds
 - [ ] ResNet50 smoke test runs without errors: `python run_resnet50_tt.py`
 - [ ] Output shape is `torch.Size([1, 1000])`

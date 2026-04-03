@@ -134,39 +134,67 @@ success "Python ${PY_VERSION} found at ${PYTHON_BIN}"
 # ── Step 3: Verify Tenstorrent hardware ───────────────────────────────────────
 step "Step 3/10 — Verifying Tenstorrent hardware presence"
 
-if ! lspci | grep -qi tenstorrent; then
-    error "No Tenstorrent PCIe device found by lspci."
+DEVICE_KIND=""
+DEVICE_PATH=""
+
+if lspci | grep -qi tenstorrent; then
+    DEVICE_KIND="tenstorrent"
+    DEVICE_PATH="/dev/tenstorrent"
+elif lspci -nn | grep -qi '16c3:abcd'; then
+    DEVICE_KIND="bos"
+    DEVICE_PATH="/dev/bos"
+fi
+
+if [[ -z "${DEVICE_KIND}" ]]; then
+    error "No supported TT-XLA PCIe device found by lspci."
     error "Possible causes:"
     error "  - The card is not physically installed"
     error "  - The PCIe slot/card has a power issue"
     error "  - The machine has not been rebooted after card installation"
-    die "Cannot continue without Tenstorrent hardware. Exiting."
+    error "  - The device is present but not enumerating with a supported driver"
+    die "Cannot continue without accelerator hardware. Exiting."
 fi
 
-DEVICE_COUNT=$(lspci | grep -ic tenstorrent || true)
-success "Found ${DEVICE_COUNT} Tenstorrent device(s) on PCIe bus:"
-lspci | grep -i tenstorrent | while read -r line; do info "  ${line}"; done
+if [[ "${DEVICE_KIND}" == "tenstorrent" ]]; then
+    DEVICE_COUNT=$(lspci | grep -ic tenstorrent || true)
+    success "Found ${DEVICE_COUNT} Tenstorrent device(s) on PCIe bus:"
+    lspci | grep -i tenstorrent | while read -r line; do info "  ${line}"; done
+else
+    DEVICE_COUNT=$(lspci -nn | grep -ic '16c3:abcd' || true)
+    success "Found ${DEVICE_COUNT} BOS Eagle device(s) on PCIe bus:"
+    lspci -nn | grep -i '16c3:abcd' | while read -r line; do info "  ${line}"; done
+fi
 
 # ── Step 4: Check kernel module and device files ───────────────────────────────
-step "Step 4/10 — Checking kernel driver and /dev/tenstorrent"
+step "Step 4/10 — Checking kernel driver and device files"
 
-if [[ ! -d /dev/tenstorrent ]]; then
-    error "/dev/tenstorrent not found."
-    error "The tt-kmd kernel module is not loaded."
+if [[ ! -d "${DEVICE_PATH}" ]]; then
+    error "${DEVICE_PATH} not found."
+    if [[ "${DEVICE_KIND}" == "tenstorrent" ]]; then
+        error "The tt-kmd kernel module is not loaded."
+    else
+        error "The BOS PCIe device is present, but the BOS device nodes are missing."
+        error "Check that the BOS driver/udev setup has created /dev/bos/*."
+        if [[ -d /sys/class/bos ]]; then
+            error "/sys/class/bos exists, so PCIe enumeration succeeded but device-node creation is incomplete."
+        fi
+    fi
     error ""
-    error "Run the TT-Installer to set up the driver and device files:"
-    error "  curl -L https://installer.tenstorrent.com/tt-installer.sh -o /tmp/tt-installer.sh"
-    error "  chmod +x /tmp/tt-installer.sh"
-    error "  sudo /tmp/tt-installer.sh"
-    error "  sudo reboot"
+    if [[ "${DEVICE_KIND}" == "tenstorrent" ]]; then
+        error "Run the TT-Installer to set up the driver and device files:"
+        error "  curl -L https://installer.tenstorrent.com/tt-installer.sh -o /tmp/tt-installer.sh"
+        error "  chmod +x /tmp/tt-installer.sh"
+        error "  sudo /tmp/tt-installer.sh"
+        error "  sudo reboot"
+    fi
     die "Driver setup required. Exiting."
 fi
 
-DEV_FILES=$(ls /dev/tenstorrent/ 2>/dev/null | wc -l)
+DEV_FILES=$(ls "${DEVICE_PATH}"/ 2>/dev/null | wc -l)
 if [[ "${DEV_FILES}" -eq 0 ]]; then
-    die "/dev/tenstorrent/ directory exists but contains no device files. Re-run the TT-Installer."
+    die "${DEVICE_PATH}/ directory exists but contains no device files. Complete the driver setup and retry."
 fi
-success "Device files found: $(ls /dev/tenstorrent/ | tr '\n' ' ')"
+success "Device files found under ${DEVICE_PATH}: $(ls "${DEVICE_PATH}"/ | tr '\n' ' ')"
 
 # ── Step 5: Validate hugepages ─────────────────────────────────────────────────
 step "Step 5/10 — Validating hugepages configuration"
@@ -224,10 +252,10 @@ success "pjrt-plugin-tt installed."
 # ── Step 8: Install PyTorch, torchvision, and demo dependencies ────────────────
 step "Step 8/10 — Installing PyTorch, torchvision, and Pillow"
 
-info "Installing torch and torchvision (CPU wheel — TT device handles compute)..."
+info "Installing a TT-XLA-compatible torch/torchvision pair (CPU wheel — TT device handles compute)..."
 pip install --quiet \
-    "torch" \
-    "torchvision" \
+    "torch==2.9.0+cpu" \
+    "torchvision==0.24.0+cpu" \
     "Pillow" \
     --index-url https://download.pytorch.org/whl/cpu \
     || die "Failed to install PyTorch/torchvision."
