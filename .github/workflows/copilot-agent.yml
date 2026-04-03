@@ -1,0 +1,70 @@
+name: Copilot Agent — Confluence Access
+
+on:
+  # Triggered manually from the Actions tab
+  workflow_dispatch:
+  # Also triggered on pushes to agent config files
+  push:
+    paths:
+      - '.github/.github/agents/**'
+      - '.github/workflows/copilot-agent.yml'
+
+jobs:
+  fetch-confluence:
+    name: Fetch Confluence page and run agent
+    runs-on: ubuntu-latest
+
+    env:
+      CONFLUENCE_BASE_URL: https://bos-semi.atlassian.net
+      CONFLUENCE_EMAIL: ${{ secrets.CONFLUENCE_EMAIL }}
+      CONFLUENCE_API_TOKEN: ${{ secrets.Token1 }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify required secrets are present
+        run: |
+          if [ -z "${CONFLUENCE_EMAIL}" ]; then
+            echo "ERROR: secret CONFLUENCE_EMAIL is not set" >&2
+            exit 1
+          fi
+          if [ -z "${CONFLUENCE_API_TOKEN}" ]; then
+            echo "ERROR: secret Token1 is not set" >&2
+            exit 1
+          fi
+          echo "Secrets OK — CONFLUENCE_EMAIL is set, CONFLUENCE_API_TOKEN is set"
+
+      - name: Fetch Confluence page 337346574 (TT-XLA Installation)
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/confluence-page.json -w "%{http_code}" \
+            -u "${CONFLUENCE_EMAIL}:${CONFLUENCE_API_TOKEN}" \
+            "${CONFLUENCE_BASE_URL}/wiki/rest/api/content/337346574?expand=body.storage")
+
+          echo "HTTP status: ${HTTP_STATUS}"
+
+          if [ "${HTTP_STATUS}" != "200" ]; then
+            echo "ERROR: Failed to fetch Confluence page (HTTP ${HTTP_STATUS})" >&2
+            cat /tmp/confluence-page.json >&2
+            exit 1
+          fi
+
+          echo "Confluence page fetched successfully."
+          # Show first 500 chars to confirm content (no secrets logged)
+          python3 -c "
+          import json, sys
+          data = json.load(open('/tmp/confluence-page.json'))
+          title = data.get('title', 'N/A')
+          body  = data.get('body', {}).get('storage', {}).get('value', '')
+          print(f'Title : {title}')
+          print(f'Body length: {len(body)} characters')
+          print('--- First 500 chars of body ---')
+          print(body[:500])
+          "
+
+      - name: Upload Confluence page as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: confluence-page-337346574
+          path: /tmp/confluence-page.json
+          retention-days: 7

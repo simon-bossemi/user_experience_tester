@@ -6,6 +6,7 @@
 #   - https://github.com/tenstorrent/tt-xla
 #   - https://raw.githubusercontent.com/tenstorrent/tt-xla/main/docs/src/getting_started.md
 #   - https://bos-semi.atlassian.net/wiki/spaces/AIMultimed/pages/337346574/TT-XLA+Installation
+#   - https://docs.tenstorrent.com/getting-started/README.html  (Blackhole / BOS A0)
 #
 # Usage:
 #   chmod +x tt-xla-bootstrap.sh
@@ -22,6 +23,13 @@
 #   8. Install PyTorch, torchvision, and demo dependencies
 #   9. Write a ResNet50 demo script to the working directory
 #  10. Run the ResNet50 demo on Tenstorrent hardware
+#
+# Supported hardware:
+#   - Wormhole (n150, n300) — PCIe Gen 3
+#   - BOS A0 / Blackhole (p100a, p150a, p150b) — PCIe Gen 5
+#     BIOS pre-requisites for BOS A0:
+#       * Set "PCIe AER Reporting Mechanism" to "OS First"
+#       * Force PCIe slot speed to Gen 5 (not "Auto")
 # =============================================================================
 
 set -euo pipefail
@@ -101,6 +109,7 @@ check_tool() {
 
 check_tool git    "sudo apt-get install -y git"
 check_tool curl   "sudo apt-get install -y curl"
+check_tool jq     "sudo apt-get install -y jq"
 check_tool lspci  "sudo apt-get install -y pciutils"
 check_tool python3 "sudo apt-get install -y python3"
 check_tool pip3   "sudo apt-get install -y python3-pip"
@@ -110,7 +119,7 @@ if [[ ${#MISSING_TOOLS[@]} -gt 0 ]]; then
     if [[ "${PKG_MGR}" == "apt-get" ]]; then
         info "Attempting to install missing tools via apt-get..."
         sudo apt-get update -qq
-        sudo apt-get install -y git curl pciutils python3 python3-pip python3-venv
+        sudo apt-get install -y git curl jq pciutils python3 python3-pip python3-venv
         success "Missing tools installed."
     else
         die "Please install the missing tools manually and re-run this script."
@@ -140,12 +149,33 @@ if ! lspci | grep -qi tenstorrent; then
     error "  - The card is not physically installed"
     error "  - The PCIe slot/card has a power issue"
     error "  - The machine has not been rebooted after card installation"
+    error ""
+    error "For BOS A0 (Blackhole) cards, also check:"
+    error "  - The 12+4-pin 12V-2x6 power cable is fully connected"
+    error "  - BIOS PCIe slot speed is forced to Gen 5 (not 'Auto')"
+    error "  - The adjacent PCIe slot is empty (airflow for p100a/p150a)"
+    error ""
+    error "You can also check using the Tenstorrent vendor ID:"
+    error "  lspci -d 1e52:"
     die "Cannot continue without Tenstorrent hardware. Exiting."
 fi
 
 DEVICE_COUNT=$(lspci | grep -ic tenstorrent || true)
 success "Found ${DEVICE_COUNT} Tenstorrent device(s) on PCIe bus:"
 lspci | grep -i tenstorrent | while read -r line; do info "  ${line}"; done
+
+# Detect hardware architecture family (Wormhole vs Blackhole / BOS A0)
+if lspci | grep -qi blackhole; then
+    HW_ARCH="blackhole"
+    info "Hardware family: Blackhole (BOS A0) — PCIe Gen 5"
+elif lspci | grep -qi wormhole; then
+    HW_ARCH="wormhole"
+    info "Hardware family: Wormhole — PCIe Gen 3"
+else
+    HW_ARCH="unknown"
+    warn "Could not determine hardware architecture from lspci output."
+    warn "Proceeding; verify manually with: jax.devices('tt')"
+fi
 
 # ── Step 4: Check kernel module and device files ───────────────────────────────
 step "Step 4/10 — Checking kernel driver and /dev/tenstorrent"
@@ -154,11 +184,16 @@ if [[ ! -d /dev/tenstorrent ]]; then
     error "/dev/tenstorrent not found."
     error "The tt-kmd kernel module is not loaded."
     error ""
-    error "Run the TT-Installer to set up the driver and device files:"
-    error "  curl -L https://installer.tenstorrent.com/tt-installer.sh -o /tmp/tt-installer.sh"
-    error "  chmod +x /tmp/tt-installer.sh"
-    error "  sudo /tmp/tt-installer.sh"
+    error "Run the TT-Installer to set up the driver, firmware, and device files:"
+    error "  sudo apt-get install -y curl jq"
+    error "  /bin/bash -c \"\$(curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh)\""
     error "  sudo reboot"
+    error ""
+    if [[ "${HW_ARCH}" == "blackhole" ]]; then
+        error "BOS A0 (Blackhole) additional BIOS requirements before running the installer:"
+        error "  1. Set 'PCIe AER Reporting Mechanism' to 'OS First'"
+        error "  2. Force PCIe slot speed to Gen 5 (not 'Auto')"
+    fi
     die "Driver setup required. Exiting."
 fi
 
@@ -341,6 +376,7 @@ echo ""
 echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║  TT-XLA bootstrap complete!                                  ║${NC}"
 echo -e "${GREEN}║                                                              ║${NC}"
+echo -e "${GREEN}║  Hardware:     ${HW_ARCH}${NC}"
 echo -e "${GREEN}║  Virtual env:  ${VENV_DIR}${NC}"
 echo -e "${GREEN}║  Demo script:  $(pwd)/${DEMO_SCRIPT}${NC}"
 echo -e "${GREEN}║                                                              ║${NC}"
