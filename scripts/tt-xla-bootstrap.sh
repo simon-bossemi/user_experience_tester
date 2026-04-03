@@ -154,13 +154,22 @@ success "Python ${PY_VERSION} found at ${PYTHON_BIN}"
 # ── Step 3: Verify Tenstorrent hardware ───────────────────────────────────────
 step "Step 3/10 — Verifying BOS A0 hardware presence"
 
-# Primary check: use PCI vendor ID 1e52 (Tenstorrent) — most reliable method.
-# Fallback: match by product name, in case pciutils maps the vendor differently.
-VENDOR_COUNT=$(lspci -d 1e52: | wc -l)
-NAME_COUNT=$(lspci | grep -ic tenstorrent || true)
-if [[ "${VENDOR_COUNT}" -eq 0 ]] && [[ "${NAME_COUNT}" -eq 0 ]]; then
-    error "No BOS A0 / Tenstorrent PCIe device found."
-    error ""
+DEVICE_KIND=""
+DEVICE_PATH=""
+
+if lspci | grep -qi tenstorrent; then
+    DEVICE_KIND="tenstorrent"
+    DEVICE_PATH="/dev/tenstorrent"
+elif lspci -d 1e52: | grep -q .; then
+    DEVICE_KIND="tenstorrent"
+    DEVICE_PATH="/dev/tenstorrent"
+elif lspci -nn | grep -qi '16c3:abcd'; then
+    DEVICE_KIND="bos"
+    DEVICE_PATH="/dev/bos"
+fi
+
+if [[ -z "${DEVICE_KIND}" ]]; then
+    error "No supported TT-XLA PCIe device found by lspci."
     error "Possible causes:"
     error "  - The Blackhole card is not physically installed"
     error "  - The PCIe slot/card has a power issue"
@@ -170,61 +179,51 @@ if [[ "${VENDOR_COUNT}" -eq 0 ]] && [[ "${NAME_COUNT}" -eq 0 ]]; then
     error "  - 12+4-pin 12V-2x6 power cable must be fully connected"
     error "  - BIOS PCIe slot speed must be forced to Gen 5 (not 'Auto')"
     error "  - Adjacent PCIe slot must be empty (airflow for p100a/p150a)"
-    error ""
-    error "Manual check: lspci -d 1e52:"
-    die "Cannot continue without BOS A0 hardware. Exiting."
+    error "  - The device is present but not enumerating with a supported driver"
+    die "Cannot continue without accelerator hardware. Exiting."
 fi
 
-# Use vendor-ID count as the authoritative count; fall back to name count if needed.
-DEVICE_COUNT=$(( VENDOR_COUNT > 0 ? VENDOR_COUNT : NAME_COUNT ))
-success "Found ${DEVICE_COUNT} Tenstorrent device(s) on PCIe bus:"
-lspci | grep -i tenstorrent | while read -r line; do info "  ${line}"; done
-
-# Detect hardware architecture family (Blackhole/BOS A0 vs Wormhole)
-if lspci | grep -qi blackhole; then
-    HW_ARCH="blackhole"
-    info "Hardware family: Blackhole (BOS A0) — PCIe Gen 5"
-elif lspci | grep -qi wormhole; then
-    HW_ARCH="wormhole"
-    warn "Hardware family: Wormhole detected. This script targets BOS A0 (Blackhole)."
-    warn "The workflow will continue but device paths may differ."
+if [[ "${DEVICE_KIND}" == "tenstorrent" ]]; then
+    DEVICE_COUNT=$(lspci | grep -ic tenstorrent || true)
+    success "Found ${DEVICE_COUNT} Tenstorrent device(s) on PCIe bus:"
+    lspci | grep -i tenstorrent | while read -r line; do info "  ${line}"; done
 else
-    HW_ARCH="unknown"
-    warn "Could not determine hardware architecture from lspci output."
-    warn "Proceeding as BOS A0; verify manually with: jax.devices('tt')"
+    DEVICE_COUNT=$(lspci -nn | grep -ic '16c3:abcd' || true)
+    success "Found ${DEVICE_COUNT} BOS Eagle device(s) on PCIe bus:"
+    lspci -nn | grep -i '16c3:abcd' | while read -r line; do info "  ${line}"; done
 fi
 
 # ── Step 4: Check kernel module and device files ───────────────────────────────
-step "Step 4/10 — Checking kernel driver and BOS device files"
+step "Step 4/10 — Checking kernel driver and device files"
 
-# BOS A0 exposes devices at /dev/bos/<id>; Wormhole uses /dev/tenstorrent/<id>
-if [[ -d /dev/bos ]]; then
-    DEV_DIR="/dev/bos"
-    success "BOS A0 device directory found: ${DEV_DIR}"
-elif [[ -d /dev/tenstorrent ]]; then
-    DEV_DIR="/dev/tenstorrent"
-    warn "Found /dev/tenstorrent (Wormhole path). BOS A0 uses /dev/bos — verify your hardware."
-    success "Device directory: ${DEV_DIR}"
-else
-    error "No device directory found (/dev/bos or /dev/tenstorrent)."
-    error "This means the tt-kmd kernel module is not loaded or the TT-Installer has not been run."
+if [[ ! -d "${DEVICE_PATH}" ]]; then
+    error "${DEVICE_PATH} not found."
+    if [[ "${DEVICE_KIND}" == "tenstorrent" ]]; then
+        error "The tt-kmd kernel module is not loaded."
+    else
+        error "The BOS PCIe device is present, but the BOS device nodes are missing."
+        error "Check that the BOS driver/udev setup has created /dev/bos/*."
+        if [[ -d /sys/class/bos ]]; then
+            error "/sys/class/bos exists, so PCIe enumeration succeeded but device-node creation is incomplete."
+        fi
+    fi
     error ""
-    error "Run the TT-Installer to set up the driver, firmware, and device files:"
-    error "  sudo apt-get install -y curl jq"
-    error "  /bin/bash -c \"\$(curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh)\""
-    error "  sudo reboot"
-    error ""
-    error "BOS A0 BIOS requirements (must be set before running the installer):"
-    error "  1. PCIe AER Reporting Mechanism → 'OS First'"
-    error "  2. PCIe slot speed → Gen 5 (not 'Auto')"
+    if [[ "${DEVICE_KIND}" == "tenstorrent" ]]; then
+        error "Run the TT-Installer to set up the driver and device files:"
+        error "  curl -L https://installer.tenstorrent.com/tt-installer.sh -o /tmp/tt-installer.sh"
+        error "  chmod +x /tmp/tt-installer.sh"
+        error "  sudo /tmp/tt-installer.sh"
+        error "  sudo reboot"
+    fi
     die "Driver setup required. Exiting."
 fi
 
-DEV_FILES=$(ls "${DEV_DIR}/" 2>/dev/null | wc -l)
+DEV_FILES=$(ls "${DEVICE_PATH}"/ 2>/dev/null | wc -l)
 if [[ "${DEV_FILES}" -eq 0 ]]; then
-    die "${DEV_DIR}/ directory exists but contains no device files. Re-run the TT-Installer."
+    die "${DEVICE_PATH}/ directory exists but contains no device files. Complete the driver setup and retry."
 fi
-success "Device files found: $(ls "${DEV_DIR}/" | tr '\n' ' ')"
+success "Device files found under ${DEVICE_PATH}: $(ls "${DEVICE_PATH}"/ | tr '
+' ' ')"
 
 # ── Step 5: Validate hugepages ─────────────────────────────────────────────────
 step "Step 5/10 — Validating hugepages configuration"
@@ -298,19 +297,11 @@ fi
 # ── Step 8: Install PyTorch, torchvision, and demo dependencies ────────────────
 step "Step 8/10 — Installing PyTorch, torchvision, and Pillow"
 
-if "${VENV_DIR}/bin/python3" -c "import torch" 2>/dev/null; then
-    success "PyTorch is already installed — skipping."
-else
-    info "Installing torch and torchvision (CPU wheel — BOS A0 device handles compute)..."
-    info "Note: Do NOT install torch-xla separately; it is bundled inside pjrt-plugin-tt."
-    pip install --quiet \
-        "torch" \
-        "torchvision" \
-        "Pillow" \
-        --index-url https://download.pytorch.org/whl/cpu \
-        || die "Failed to install PyTorch/torchvision."
-    success "PyTorch $(python3 -c 'import torch; print(torch.__version__)') installed."
-fi
+info "Installing a TT-XLA-compatible torch/torchvision pair (CPU wheel — TT device handles compute)..."
+info "Note: Do NOT install torch-xla separately; it is bundled inside pjrt-plugin-tt."
+pip install --quiet     "torch==2.9.0+cpu"     "torchvision==0.24.0+cpu"     "Pillow"     --index-url https://download.pytorch.org/whl/cpu     || die "Failed to install PyTorch/torchvision."
+success "PyTorch $(python3 -c 'import torch; print(torch.__version__)') installed."
+
 
 # ── Step 9: Write the ResNet50 demo script ────────────────────────────────────
 step "Step 9/10 — Writing ResNet50 TT-XLA demo script"

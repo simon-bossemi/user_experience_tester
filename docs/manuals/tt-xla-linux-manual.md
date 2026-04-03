@@ -172,7 +172,7 @@ Some motherboards fail to enumerate Blackhole cards when PCIe speed is set to "A
 After completing BIOS setup, boot into Linux and confirm the card is enumerated:
 
 ```bash
-# Option 1 — check by product name:
+# Option 1 — check by product name (Tenstorrent systems):
 lspci | grep -i tenstorrent
 # Expected output for BOS A0 (Blackhole):
 # 01:00.0 Processing accelerators: Tenstorrent Inc. Blackhole (rev 01)
@@ -180,6 +180,12 @@ lspci | grep -i tenstorrent
 # Option 2 — check by PCI vendor ID (more reliable if driver not yet installed):
 lspci -d 1e52:
 # Expected: at least one line beginning with a bus address
+
+# BOS Eagle systems may enumerate under the BOS driver instead:
+lspci -nn | grep -E 'tenstorrent|16c3:abcd'
+# Expected examples:
+# 01:00.0 Co-processor [0b40]: Synopsys, Inc. DWC_usb3 / PCIe bridge [16c3:abcd]
+#   Kernel driver in use: bos
 ```
 
 Also confirm the BOS device directory is present after driver install (see Section 4):
@@ -338,15 +344,23 @@ package is not on the main PyPI server.
 - `torch_plugin_tt` — PyTorch backend wrapper
 - `tt-metal` — low-level Tenstorrent runtime kernels
 
-### 5.3 Install PyTorch and torchvision (for ResNet50)
+### 5.3 Install a TT-XLA-Compatible PyTorch Pair (for ResNet50)
 
-```bash
-# Install PyTorch and torchvision (CPU build — the TT device handles compute):
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-```
+Do **not** run an unpinned `pip install torch torchvision` after installing `pjrt-plugin-tt`.
+That can upgrade `torch` beyond the `torch-xla` ABI expected by the TT-XLA wheel.
 
 **Why CPU wheel?** The Tenstorrent NPU is the compute target, not a GPU. Installing the CPU
 version of PyTorch saves ~1 GB of unnecessary CUDA libraries.
+
+For `pjrt-plugin-tt==0.9.0`, the working pair observed in Linux validation was:
+
+```bash
+pip install --force-reinstall \
+    torch==2.9.0+cpu \
+    torchvision==0.24.0+cpu \
+    --index-url https://download.pytorch.org/whl/cpu
+```
+
 
 > ⚠️ **Do NOT install `torch-xla` separately.** Tenstorrent's fork of `torch-xla` is already
 > bundled inside the `pjrt-plugin-tt` wheel. Installing a standalone `torch-xla` on top will
@@ -392,6 +406,10 @@ torch_plugin_tt loaded OK
 ```
 
 > If Check 1 shows an empty list `[]` or an error, see [Section 11 — Troubleshooting](#11-troubleshooting).
+
+If `jax.devices('tt')` fails with `No chips detected in the cluster`, the Python installation is
+present but the runtime still cannot see a usable device. On BOS Eagle systems, check `/sys/class/bos`
+and `/dev/bos/` before troubleshooting the Python packages further.
 
 ---
 
@@ -448,6 +466,8 @@ docker run -it --rm \
 - `--device /dev/tenstorrent` — gives the container access to the Tenstorrent hardware
 - `-v /dev/hugepages:/dev/hugepages` and `-v /dev/hugepages-1G:/dev/hugepages-1G` — share hugepages memory with the container
 - `ghcr.io/tenstorrent/tt-xla-slim:latest` — the container image (downloaded automatically)
+
+On BOS Eagle systems, adapt the device path to `/dev/bos` once the BOS device nodes exist.
 
 ### 6.3 Run TT-XLA Docker Container (BOS A0 / Blackhole)
 
@@ -1246,7 +1266,37 @@ echo $VIRTUAL_ENV
 pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.com/
 ```
 
----
+### `torch_xla` / `torch_plugin_tt` import fails with undefined symbols
+
+This usually means `torch` was upgraded beyond the version expected by the installed TT-XLA wheel.
+
+```bash
+source ~/.tt-xla-venv/bin/activate
+pip install --force-reinstall \
+    torch==2.9.0+cpu \
+    torchvision==0.24.0+cpu \
+    --index-url https://download.pytorch.org/whl/cpu
+pip install --force-reinstall --no-deps \
+    pjrt-plugin-tt==0.9.0 \
+    --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+```
+
+### `No chips detected in the cluster`
+
+The TT-XLA Python packages are installed, but runtime device discovery still failed.
+
+```bash
+# Tenstorrent path:
+ls /dev/tenstorrent/
+
+# BOS Eagle path:
+ls /sys/class/bos
+ls /dev/bos/
+```
+
+If `/sys/class/bos` exists but `/dev/bos/` is missing, fix the BOS driver/device-node setup before
+retrying `jax.devices('tt')`.
+
 
 ### Problem: `torch.compile` appears to hang for a very long time
 
@@ -1356,6 +1406,8 @@ docker run -it --rm --device /dev/bos/0:/dev/bos/0 \
     ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest bash
 ```
 
+On BOS Eagle systems, use `/dev/bos` instead once the BOS device nodes exist.
+
 ---
 
 ### Problem (BOS A0 build): GitHub SSH authentication fails
@@ -1450,8 +1502,8 @@ Use this checklist to verify a fresh BOS A0 install from scratch.
 
 - [ ] Python 3.11 or 3.12 virtual environment created and activated
 - [ ] `pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.com/` succeeds
-- [ ] `python3 -c "import jax; print(jax.devices('tt'))"` returns `arch=blackhole`
-- [ ] `pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu` succeeds
+- [ ] `python3 -c "import jax; print(jax.devices('tt'))"` returns `arch=blackhole` (BOS A0) or shows TT devices
+- [ ] A TT-XLA-compatible `torch`/`torchvision` pair is installed (e.g. `torch==2.9.0+cpu`)
 - [ ] **No** standalone `torch-xla` installed (bundled in `pjrt-plugin-tt`)
 - [ ] `python3 -c "import torch_plugin_tt; print('OK')"` succeeds
 - [ ] ResNet50 smoke test runs without errors: `python run_resnet50_tt.py`
