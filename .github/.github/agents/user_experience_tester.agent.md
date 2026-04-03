@@ -23,6 +23,7 @@ This agent takes as input:
   - export scripts
   - inference examples
 - Use the full documentation in https://bos-semi.atlassian.net/wiki/home
+- When Confluence is not directly accessible, use the local snapshot at `docs/references/bos-confluence-review-context.md`
 
 
 ---

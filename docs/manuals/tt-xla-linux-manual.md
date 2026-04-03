@@ -117,6 +117,62 @@ curl                   # to download the TT-Installer
 jq                     # required by TT-Installer (see Section 4)
 ```
 
+### 2.4 Network Requirements
+
+> ⚠️ **Internet connectivity is required** for the standard wheel install (Option A) and Docker
+> (Option B) paths. Build from source (Option C) requires network access only during the initial
+> clone and dependency download.
+
+The following external hosts must be reachable from your system:
+
+| Host | Purpose | Used by |
+|------|---------|---------|
+| `installer.tenstorrent.com` | TT-Installer script download | Section 4 |
+| `pypi.eng.aws.tenstorrent.com` | Tenstorrent's private PyPI (pjrt-plugin-tt) | Section 5.2 |
+| `download.pytorch.org` | PyTorch CPU wheels | Section 5.3 |
+| `pypi.org` | pip, wheel, setuptools upgrades | Sections 5–7 |
+| `github.com` (HTTPS + SSH) | TT-XLA / TT-MLIR source clones (Option C) | Section 7 |
+| `ghcr.io` | Docker CI image (Option B) | Section 6 |
+
+**Check reachability before starting:**
+
+```bash
+# Quick connectivity check — all should return HTTP 200 or a redirect:
+curl -s -o /dev/null -w "%{http_code}" https://pypi.eng.aws.tenstorrent.com/  # expect 200 or 301
+curl -s -o /dev/null -w "%{http_code}" https://download.pytorch.org/whl/cpu/  # expect 200
+curl -s -o /dev/null -w "%{http_code}" https://pypi.org/simple/pip/            # expect 200
+```
+
+**Offline / air-gapped alternatives:**
+
+If your host cannot reach the required URLs (e.g., corporate firewall, lab environment), you
+can pre-download the wheels on a connected machine and transfer them:
+
+```bash
+# On a connected machine — download all required wheels:
+pip download pjrt-plugin-tt \
+    --extra-index-url https://pypi.eng.aws.tenstorrent.com/ \
+    -d /tmp/tt-xla-wheels/
+
+pip download torch==2.9.0+cpu torchvision==0.24.0+cpu Pillow \
+    --index-url https://download.pytorch.org/whl/cpu \
+    -d /tmp/tt-xla-wheels/
+
+# Transfer the /tmp/tt-xla-wheels/ directory to the air-gapped host, then install:
+pip install --no-index --find-links /path/to/tt-xla-wheels/ pjrt-plugin-tt
+pip install --no-index --find-links /path/to/tt-xla-wheels/ torch torchvision Pillow
+```
+
+The `pjrt-plugin-tt` wheel can also be downloaded directly from:
+`https://github.com/bos-semi/tt-xla/releases` (requires GitHub access).
+
+> **Corporate proxy:** If your environment requires an HTTP proxy, set it before running any
+> `pip install` or `curl` command:
+> ```bash
+> export https_proxy=http://proxy.example.com:8080
+> export http_proxy=http://proxy.example.com:8080
+> ```
+
 ---
 
 ## 3. BOS A0 (Blackhole) — Hardware and BIOS Setup
