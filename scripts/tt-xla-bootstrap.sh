@@ -2,6 +2,8 @@
 # =============================================================================
 # tt-xla-bootstrap.sh — One-command TT-XLA installation and ResNet50 demo
 #
+# Audience: Linux beginners and first-time TT-XLA users
+#
 # Sources:
 #   - https://github.com/tenstorrent/tt-xla
 #   - https://raw.githubusercontent.com/tenstorrent/tt-xla/main/docs/src/getting_started.md
@@ -10,6 +12,14 @@
 # Usage:
 #   chmod +x tt-xla-bootstrap.sh
 #   ./tt-xla-bootstrap.sh
+#
+# Prerequisites (checked automatically by this script):
+#   - Ubuntu 22.04 or 24.04 LTS (other distros may work with warnings)
+#   - Tenstorrent PCIe card installed and TT driver/firmware already set up
+#     (run the TT-Installer first: https://installer.tenstorrent.com/tt-installer.sh)
+#   - Python 3.11 or 3.12
+#   - Internet connection (to download wheels and pretrained model weights)
+#   - sudo access (for hugepage configuration if needed)
 #
 # What this script does (in order):
 #   1. Detect the Linux distribution and validate Ubuntu/Debian support
@@ -136,10 +146,20 @@ step "Step 3/10 — Verifying Tenstorrent hardware presence"
 
 if ! lspci | grep -qi tenstorrent; then
     error "No Tenstorrent PCIe device found by lspci."
+    error ""
     error "Possible causes:"
-    error "  - The card is not physically installed"
-    error "  - The PCIe slot/card has a power issue"
-    error "  - The machine has not been rebooted after card installation"
+    error "  1. The card is not physically installed in a PCIe slot"
+    error "  2. The card has a power or seating issue (reseat it)"
+    error "  3. The machine has not been rebooted after card installation"
+    error "  4. The PCIe slot is not powered (check BIOS / power supply)"
+    error ""
+    error "To install the Tenstorrent hardware driver, run the TT-Installer first:"
+    error "  curl -L https://installer.tenstorrent.com/tt-installer.sh -o /tmp/tt-installer.sh"
+    error "  chmod +x /tmp/tt-installer.sh"
+    error "  sudo /tmp/tt-installer.sh"
+    error "  sudo reboot"
+    error ""
+    error "After rebooting, re-run this script."
     die "Cannot continue without Tenstorrent hardware. Exiting."
 fi
 
@@ -151,14 +171,18 @@ lspci | grep -i tenstorrent | while read -r line; do info "  ${line}"; done
 step "Step 4/10 — Checking kernel driver and /dev/tenstorrent"
 
 if [[ ! -d /dev/tenstorrent ]]; then
-    error "/dev/tenstorrent not found."
-    error "The tt-kmd kernel module is not loaded."
+    error "/dev/tenstorrent directory not found."
+    error "This means the tt-kmd kernel module is not loaded."
     error ""
-    error "Run the TT-Installer to set up the driver and device files:"
+    error "The Tenstorrent driver must be installed before running this script."
+    error "Run the official TT-Installer to set up the driver:"
+    error ""
     error "  curl -L https://installer.tenstorrent.com/tt-installer.sh -o /tmp/tt-installer.sh"
     error "  chmod +x /tmp/tt-installer.sh"
     error "  sudo /tmp/tt-installer.sh"
     error "  sudo reboot"
+    error ""
+    error "After rebooting, re-run this script."
     die "Driver setup required. Exiting."
 fi
 
@@ -213,11 +237,23 @@ success "pip $(pip --version | awk '{print $2}') ready."
 step "Step 7/10 — Installing TT-XLA PJRT plugin (pjrt-plugin-tt)"
 
 info "Installing pjrt-plugin-tt from Tenstorrent's PyPI index..."
+info "  This downloads the compiled TT-XLA plugin (~300 MB)."
 info "  Source: pip install pjrt-plugin-tt --extra-index-url ${TT_PYPI_URL}"
 
 pip install pjrt-plugin-tt \
     --extra-index-url "${TT_PYPI_URL}" \
-    || die "Failed to install pjrt-plugin-tt. Check network connectivity to ${TT_PYPI_URL}"
+    || {
+        error "Failed to install pjrt-plugin-tt."
+        error ""
+        error "Possible causes:"
+        error "  1. No internet connection or firewall blocking ${TT_PYPI_URL}"
+        error "  2. The Tenstorrent PyPI index is temporarily unavailable"
+        error ""
+        error "Alternative: download the wheel from GitHub Releases:"
+        error "  https://github.com/tenstorrent/tt-xla/releases"
+        error "  Then install with: pip install pjrt_plugin_tt-*.whl"
+        die "Installation failed. See above for options."
+    }
 
 success "pjrt-plugin-tt installed."
 
@@ -331,10 +367,28 @@ success "Demo script written to $(pwd)/${DEMO_SCRIPT}"
 step "Step 10/10 — Running ResNet50 on Tenstorrent hardware"
 
 info "Executing: python3 ${DEMO_SCRIPT}"
-info "(First compile run may take 1–3 minutes — this is normal)"
+info ""
+info "What to expect:"
+info "  - First, ResNet50 pretrained weights download (~100 MB) — one-time only"
+info "  - Then, TT-XLA compiles the model — takes 30–120 seconds on first run"
+info "  - A sample dog image is downloaded and run through the model"
+info "  - Top-5 ImageNet predictions are printed at the end"
+info ""
+info "⚠️  If the script appears to pause for 30–120 seconds at 'Compiling...',"
+info "    this is NORMAL. Do not interrupt. The compiled binary is cached for future runs."
 
 python3 "${DEMO_SCRIPT}" \
-    || die "ResNet50 demo failed. Check the error output above and consult the troubleshooting section in docs/manuals/tt-xla-linux-manual.md"
+    || {
+        error "ResNet50 demo failed. See the error output above."
+        error ""
+        error "Common fixes:"
+        error "  - If 'No TT devices found': check driver with 'ls /dev/tenstorrent/'"
+        error "  - If 'ImportError: torch_plugin_tt': re-install pjrt-plugin-tt (Step 7)"
+        error "  - If 'hugepages error': run 'sudo sysctl -w vm.nr_hugepages=4'"
+        error ""
+        error "Full troubleshooting guide: docs/manuals/tt-xla-linux-manual.md (Section 11)"
+        die "Demo failed."
+    }
 
 # ── Summary ────────────────────────────────────────────────────────────────────
 echo ""

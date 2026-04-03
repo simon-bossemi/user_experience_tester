@@ -3,12 +3,31 @@
 **Tool:** TT-XLA (Tenstorrent XLA)  
 **Report type:** Gap analysis, assumption log, and installation blockers  
 **Author:** user_experience_tester agent  
-**Date:** 2025  
+**Date:** 2026 (second run — revised)  
 **Sources consulted:**
 - [BOS Internal Tutorial](https://bos-semi.atlassian.net/wiki/spaces/AIMultimed/pages/337346574/TT-XLA+Installation) *(internal — not accessible during this analysis)*
 - [GitHub tenstorrent/tt-xla](https://github.com/tenstorrent/tt-xla)
 - [Official Getting Started (raw)](https://raw.githubusercontent.com/tenstorrent/tt-xla/main/docs/src/getting_started.md)
 - Web search synthesis (Tenstorrent docs, DeepWiki, community guides)
+
+---
+
+## 0. Second-Run Summary (Revised 2026)
+
+This report has been revised following updated agent and repository instructions. Key improvements
+in this revision compared to the initial 2025 report:
+
+| Area | Change |
+|------|--------|
+| Manual audience | Explicitly written for beginners in AI and Linux |
+| Manual structure | Added "How to Open a Terminal" section; added Glossary |
+| Manual commands | Added "what this command does" explanations next to each command |
+| Manual outputs | Expanded expected output samples throughout |
+| Troubleshooting | Added actionable next steps and diagnosis commands per error |
+| Script error messages | Added specific recovery instructions per failure mode |
+| Script Step 10 | Added per-step explanation of what the user should expect to see |
+
+The core gap analysis and findings from the initial run remain valid and are preserved below.
 
 ---
 
