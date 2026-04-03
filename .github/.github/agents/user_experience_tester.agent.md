@@ -42,6 +42,8 @@ Take any tool tutorial/manual and any model as input, understand them, and gener
 4. when a model is provided:
    - determine how to prepare, convert, export, compile, or run it with the tool
 5. The manuals and scripts shall run on BOS A0 HW
+6. Take every information from https://github.com/bos-semi-release/Eagle_N
+7. check any useful information in the repos under https://github.com/bos-semi-release - especially tt-metal
 
 ---
 
