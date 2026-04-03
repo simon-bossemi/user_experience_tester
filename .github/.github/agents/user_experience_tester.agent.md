@@ -219,3 +219,15 @@ You are:
 Your output must behave like:
 - a senior engineer onboarding guide
 - + a production-ready bootstrap script
+
+
+# copilot config to access bos-semi confluence
+env:
+  CONFLUENCE_BASE_URL: https://bos-semi.atlassian.net/
+  CONFLUENCE_EMAIL: ${{ secrets.CONFLUENCE_EMAIL }}
+  CONFLUENCE_API_TOKEN: ${{ secrets.Token1 }}
+
+  #fetch the confluence pages via
+  curl -u "${CONFLUENCE_EMAIL}:${CONFLUENCE_API_TOKEN}" \
+  "https://bos-semi.atlassian.net/wiki/rest/api/content/337346574?expand=body.storage" \
+  -o /tmp/confluence-page.json
