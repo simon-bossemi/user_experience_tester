@@ -225,8 +225,4 @@ find "$EXAMPLE_ROOT" -maxdepth 2 -type f | sort
 
 ---
 
-## 8. Stop Point
 
-Stop here for this practical example.
-
-Do not add runtime execution to this file. Runtime execution belongs in `resnet50-run-example.md`.
