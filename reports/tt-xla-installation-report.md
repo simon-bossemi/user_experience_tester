@@ -85,7 +85,7 @@ Key findings from the PDF (7 pages, titled "TT-XLA Installation"):
 | No ResNet50 example | Official demos show GPT / OPT NLP models; no vision classification example | Created from scratch using `torchvision.models.resnet50` + `torch.compile` |
 | No Python version pinning in wheel install | Docs say "Python ≥ 3.10" but build-from-source explicitly requires 3.12 | Used 3.11 for wheel install (known-good), 3.12 required only for source build |
 | No pip version constraint | Old pip (<23) may fail with `--extra-index-url` resolution | Script upgrades pip before installing the plugin |
-| torch-xla version not pinned | `pjrt-plugin-tt` bundles torch-xla internally; standalone `torch-xla` version compatibility is not documented | Used bundled version; added note not to install a separate conflicting torch-xla |
+| torch-xla version not pinned | `pjrt-plugin-tt` bundles torch-xla internally; a standalone `torch-xla` **must not** be installed separately as it will cause a version conflict | Do not install standalone `torch-xla`; use the bundled version inside `pjrt-plugin-tt` only |
 | No torchvision install in getting started | Not mentioned, but required for ResNet50 and many other vision models | Added explicit `pip install torchvision` step |
 | No hugepages recovery instructions | Tutorial mentions hugepages requirement but does not show how to configure them if missing | Added `sysctl vm.nr_hugepages=4` workaround in the script |
 | Build-from-source: TT-MLIR step is a black box | The getting started doc says "follow TT-MLIR build instructions" but links to a separate repo | Documented the dependency; build-from-source is treated as an advanced option |
