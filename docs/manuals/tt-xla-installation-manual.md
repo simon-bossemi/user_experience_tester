@@ -2,7 +2,7 @@
 
 **Tool:** TT-XLA (Tenstorrent XLA)  
 **Target hardware:** HOST with BOS A0 Eagle-N
-**Audience:** Beginners in AI and Linux
+
 
 This file covers installation only:
 
