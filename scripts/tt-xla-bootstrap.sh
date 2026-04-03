@@ -189,15 +189,20 @@ else
 fi
 
 # ── Step 4: Check kernel module and device files ───────────────────────────────
-step "Step 4/10 — Checking kernel driver and /dev/tenstorrent"
+step "Step 4/10 — Checking kernel driver and device files"
 
-if [[ ! -d /dev/tenstorrent ]]; then
-    error "/dev/tenstorrent directory not found."
+# BOS A0 exposes devices at /dev/bos/<id>; Wormhole uses /dev/tenstorrent/<id>
+if [[ "${HW_ARCH}" == "blackhole" ]] && [[ -d /dev/bos ]]; then
+    DEV_DIR="/dev/bos"
+    success "BOS A0 device directory: ${DEV_DIR}"
+elif [[ -d /dev/tenstorrent ]]; then
+    DEV_DIR="/dev/tenstorrent"
+    success "Tenstorrent device directory: ${DEV_DIR}"
+else
+    error "No device directory found (/dev/bos or /dev/tenstorrent)."
     error "This means the tt-kmd kernel module is not loaded."
     error ""
     error "The Tenstorrent driver must be installed before running this script."
-    error "Run the official TT-Installer to set up the driver:"
-    error ""
     error "Run the TT-Installer to set up the driver, firmware, and device files:"
     error "  sudo apt-get install -y curl jq"
     error "  /bin/bash -c \"\$(curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh)\""
@@ -211,14 +216,18 @@ if [[ ! -d /dev/tenstorrent ]]; then
     die "Driver setup required. Exiting."
 fi
 
-DEV_FILES=$(ls /dev/tenstorrent/ 2>/dev/null | wc -l)
+DEV_FILES=$(ls "${DEV_DIR}/" 2>/dev/null | wc -l)
 if [[ "${DEV_FILES}" -eq 0 ]]; then
-    die "/dev/tenstorrent/ directory exists but contains no device files. Re-run the TT-Installer."
+    die "${DEV_DIR}/ directory exists but contains no device files. Re-run the TT-Installer."
 fi
-success "Device files found: $(ls /dev/tenstorrent/ | tr '\n' ' ')"
+success "Device files found: $(ls "${DEV_DIR}/" | tr '\n' ' ')"
 
 # ── Step 5: Validate hugepages ─────────────────────────────────────────────────
 step "Step 5/10 — Validating hugepages configuration"
+
+# Hugepages are configured automatically by the TT-Installer (Section 4 of the manual).
+# If the TT-Installer was run before this script, hugepages should already be set.
+# This step only verifies the current state and warns — it does NOT fail the script.
 
 HP_TOTAL=$(grep -i 'HugePages_Total' /proc/meminfo | awk '{print $2}')
 HP_FREE=$(grep -i 'HugePages_Free' /proc/meminfo | awk '{print $2}')
@@ -227,14 +236,11 @@ info "HugePages_Total: ${HP_TOTAL}"
 info "HugePages_Free:  ${HP_FREE}"
 
 if [[ "${HP_TOTAL}" -lt "${HUGEPAGES_MIN}" ]]; then
-    warn "Hugepages_Total is ${HP_TOTAL}; at least ${HUGEPAGES_MIN} x 1 GB hugepage is required."
-    warn "Attempting to configure hugepages..."
-    echo 4 | sudo tee /proc/sys/vm/nr_hugepages > /dev/null
-    HP_TOTAL=$(grep -i 'HugePages_Total' /proc/meminfo | awk '{print $2}')
-    if [[ "${HP_TOTAL}" -lt "${HUGEPAGES_MIN}" ]]; then
-        die "Failed to configure hugepages. Make sure the system has enough free RAM (>=4 GB)."
-    fi
-    success "Hugepages configured: ${HP_TOTAL} available."
+    warn "HugePages_Total is ${HP_TOTAL} — at least ${HUGEPAGES_MIN} x 1 GB hugepage is recommended."
+    warn "The TT-Installer should have configured hugepages. If it was not run, configure manually:"
+    warn "  sudo sysctl -w vm.nr_hugepages=4"
+    warn "  echo 'vm.nr_hugepages=4' | sudo tee -a /etc/sysctl.conf"
+    warn "Continuing — TT-Metal will report an error at runtime if hugepages are missing."
 else
     success "Hugepages OK: ${HP_TOTAL} total, ${HP_FREE} free."
 fi

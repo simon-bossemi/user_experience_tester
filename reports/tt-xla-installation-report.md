@@ -5,7 +5,7 @@
 **Author:** user_experience_tester agent  
 **Date:** 2026  
 **Sources consulted:**
-- [BOS Internal Tutorial](https://bos-semi.atlassian.net/wiki/spaces/AIMultimed/pages/337346574/TT-XLA+Installation) *(internal — not accessible during this analysis)*
+- [BOS Internal Tutorial — PDF export](inputs/AIMultimed-TT-XLA%20Installation-030426-023800.pdf) *(now available — supersedes prior "blocked" status)*
 - [GitHub tenstorrent/tt-xla](https://github.com/tenstorrent/tt-xla)
 - [Official Getting Started (raw)](https://raw.githubusercontent.com/tenstorrent/tt-xla/main/docs/src/getting_started.md)
 - [Tenstorrent Blackhole Hardware Installation](https://github.com/tenstorrent/tenstorrent.github.io/blob/main/core/aibs/blackhole/installation.md)
@@ -14,22 +14,25 @@
 
 ---
 
-## 0. Second-Run Summary (Revised 2026)
+## 0. Third-Run Summary (Revised April 2026 — BOS A0 PDF Now Available)
 
-This report has been revised following updated agent and repository instructions. Key improvements
-in this revision compared to the initial 2025 report:
+This report has been revised a second time following the availability of the **BOS internal
+tutorial as a PDF export** (`AIMultimed-TT-XLA Installation-030426-023800.pdf`, 7 pages).
+This resolves the previously-critical blocker of Confluence inaccessibility.
+
+Key improvements in this revision:
 
 | Area | Change |
 |------|--------|
-| Manual audience | Explicitly written for beginners in AI and Linux |
-| Manual structure | Added "How to Open a Terminal" section; added Glossary |
-| Manual commands | Added "what this command does" explanations next to each command |
-| Manual outputs | Expanded expected output samples throughout |
-| Troubleshooting | Added actionable next steps and diagnosis commands per error |
-| Script error messages | Added specific recovery instructions per failure mode |
-| Script Step 10 | Added per-step explanation of what the user should expect to see |
+| BOS internal tutorial | Now read and incorporated — blocker resolved |
+| Docker section | Corrected image name, added BOS A0 device path `/dev/bos/`, full launch command |
+| Build from source | Added BOS A0-specific repos (`bos-semi/tt-mlir`, `bos-semi/tt-xla`), cmake flags, SSH setup |
+| Known bug | Documented `core_assignment.cpp` manual fix for BOS A0 `tt-metal` builds |
+| Hugepages | Made optional — TT-Installer handles it; script now warns instead of failing |
+| Test command | Added `pytest tests/benchmark/test_vision.py::test_resnet50 -sv` from PDF |
+| Troubleshooting | Added SSH setup, SFPI mismatch, setuptools fix, Python version fix |
 
-The core gap analysis and findings from the initial run remain valid and are preserved below.
+The core gap analysis and findings from the first and second runs remain valid and are preserved below.
 
 ---
 
@@ -54,20 +57,26 @@ pre-processing step. `torch.compile(model, backend="tt")` handles all graph lowe
 
 ## 2. Gaps in the Official Tutorial
 
-### 2.1 BOS Internal Tutorial (Atlassian)
+### 2.1 BOS Internal Tutorial (Atlassian → PDF Export)
 
-> **Blocker:** The BOS internal Atlassian page
-> (`https://bos-semi.atlassian.net/wiki/spaces/AIMultimed/pages/337346574/TT-XLA+Installation`)
-> **was not accessible** during this analysis. It requires authenticated access to the BOS-Semi
-> Confluence instance.
+> **STATUS: RESOLVED.** The BOS internal Confluence page was previously inaccessible.
+> A PDF export (`AIMultimed-TT-XLA Installation-030426-023800.pdf`) was provided in the `inputs/`
+> directory and has now been fully read and incorporated.
 
-As a result, all content in this report is derived from the **publicly available**
-Tenstorrent documentation and GitHub repository. Any BOS-specific configuration,
-credentials, internal package mirrors, or proprietary hardware variants described only
-in the internal tutorial are **not captured here**.
+Key findings from the PDF (7 pages, titled "TT-XLA Installation"):
 
-**Action required:** A developer with Atlassian access should review the internal tutorial
-and diff it against this report to identify any missing BOS-specific steps.
+| Finding | Significance |
+|---------|-------------|
+| Docker image for BOS A0 is `ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest` | Different from generic `tt-xla-slim` used in prior versions |
+| BOS A0 device path is `/dev/bos/<device_id>` | Not `/dev/tenstorrent/<device_id>` — undocumented in public docs |
+| BOS repos are `git@github.com:bos-semi/tt-mlir.git` (branch `develop`) and `git@github.com:bos-semi/tt-xla.git` (branch `release/a0`) | Private repos requiring SSH access |
+| BOS cmake flags: `-DUSE_BOS_SEMI_TTMLIR=ON -DUSE_CUSTOM_TT_MLIR_VERSION=ON -DUSE_BOS_REPO=ON` | Required for BOS A0 build |
+| Known bug in `tt-metal-e2`: `core_assignment.cpp` must be manually patched | Unused-parameter errors at lines 159–165 and 198–199 |
+| SFPI toolchain mismatch fix: `$TT_METAL_RUNTIME_ROOT/install_dependencies.sh --sfpi` | Not in any public doc |
+| `setuptools<82` required after building TT-MLIR tools | Version incompatibility |
+| Test command: `pytest tests/benchmark/test_vision.py::test_resnet50 -sv` | Confirms ResNet50 test path |
+| GitHub SSH access is mandatory for BOS repos | Must set up `~/.ssh/id_ed25519` and add to GitHub account |
+| Hugepages are mounted as Docker volumes (not separately configured) | `-v /dev/hugepages:/dev/hugepages -v /dev/hugepages-1G:/dev/hugepages-1G` |
 
 ### 2.2 Official Public Tutorial Gaps
 
@@ -272,17 +281,10 @@ Building TT-XLA from source requires:
 
 ### 5.4 BOS Internal Tutorial Not Accessible
 
-**Severity: High (for this report)**  
-The primary input tutorial (Atlassian Confluence page) could not be accessed. All analysis is
-based on public documentation only. **The GitHub Copilot agent does not have access to
-`bos-semi.atlassian.net`** — this is a missing integration between the GitHub agent and the
-BOS Semi Confluence workspace.
-
-**Action required:** A developer with Atlassian Confluence access should:
-1. Review `https://bos-semi.atlassian.net/wiki/spaces/AIMultimed/pages/337346574/TT-XLA+Installation#For-BOS-A0`
-2. Diff the BOS A0-specific steps documented there against this report and the manual
-3. Update the manual with any proprietary hardware variants, internal package mirrors, or
-   BOS-specific configuration not captured here
+**Severity: RESOLVED**  
+The BOS internal Confluence tutorial is now available as a PDF export in `inputs/`. All
+BOS A0-specific steps have been incorporated into the manual and script. See Section 2.1
+for a full listing of what was found in the PDF.
 
 ### 5.5 BOS A0 Blackhole Arch String Not Verified on Live Hardware
 
@@ -301,11 +303,12 @@ differs.
 | Environment | Hardware | Driver | Wheel Install | Source Build | Notes |
 |------------|---------|--------|--------------|--------------|-------|
 | Ubuntu 24.04 + Wormhole | ✅ | ✅ | ✅ | ✅ | Fully supported |
-| Ubuntu 22.04 + Wormhole | ✅ | ✅ | ✅ | ⚠️ | Source build needs Clang 20 manual install |
-| Ubuntu 22.04 + BOS A0 (Blackhole) | ✅ | ✅ | ✅ | ⚠️ | BIOS AER + PCIe Gen5 config required |
-| Ubuntu 24.04 + BOS A0 (Blackhole) | ✅ | ✅ | ✅ | ✅ | BIOS AER + PCIe Gen5 config required |
+| Ubuntu 22.04 + Wormhole | ✅ | ✅ | ✅ | ⚠️ | Source build needs Clang manual install |
+| Ubuntu 22.04 + BOS A0 (Blackhole) | ✅ | ✅ | ✅ | ⚠️ | BIOS AER + PCIe Gen5 + core_assignment.cpp fix |
+| Ubuntu 24.04 + BOS A0 (Blackhole) | ✅ | ✅ | ✅ | ✅ | BIOS AER + PCIe Gen5 + core_assignment.cpp fix |
 | Ubuntu 22.04, no hardware | N/A | N/A | ✅ (installs) | ⚠️ | Cannot execute — no device |
-| Docker (tt-xla-slim) | ✅ (passed through) | Pre-installed | Pre-installed | N/A | Cleanest path |
+| Docker (tt-xla-ci-ubuntu-22-04) on BOS A0 | ✅ (via /dev/bos/) | Pre-installed | Pre-installed | N/A | Use BOS A0 docker run command |
+| Docker (tt-xla-slim) on Wormhole | ✅ (via /dev/tenstorrent/) | Pre-installed | Pre-installed | N/A | Cleanest path for Wormhole |
 | RHEL/CentOS | ✅ | ⚠️ | ⚠️ | ❌ | Untested; replace apt with dnf |
 | macOS / Windows | ❌ | ❌ | ❌ | ❌ | Not supported |
 | Arch Linux | ✅ | ⚠️ (AUR) | ⚠️ | ❌ | Community-only |
@@ -359,15 +362,14 @@ torch.Size([1, 1000])   # softmax logits over 1000 ImageNet classes
 2. **Add a hardware detection pre-flight check** to any CI/CD pipeline using TT-XLA, to fail
    fast with a clear message when no Tenstorrent device is present.
 
-3. **Connect the GitHub Copilot agent to Confluence**: The agent cannot access
-   `bos-semi.atlassian.net`. Providing a PDF export or public mirror of the BOS A0 Confluence
-   page would allow the agent to incorporate BOS-specific steps automatically.
-
-4. **Verify BOS A0 arch string on live hardware**: Confirm the exact output of
+3. **Verify BOS A0 arch string on live hardware**: Confirm the exact output of
    `jax.devices('tt')` on a Blackhole system and update the manual if needed.
 
-5. **Document firmware update procedure**: TT-Flash is needed to update card firmware; the new
+4. **Document firmware update procedure**: TT-Flash is needed to update card firmware; the new
    TT-Installer runs it automatically, but manual re-flash steps are not yet documented.
 
-6. **Consider mirroring `pjrt-plugin-tt` wheels** to an internal artifact registry (e.g.,
+5. **Consider mirroring `pjrt-plugin-tt` wheels** to an internal artifact registry (e.g.,
    Nexus, Artifactory) to reduce dependency on Tenstorrent's external PyPI index.
+
+6. **Pin `setuptools<82`** in the `tt-mlir` build environment to prevent the known
+   setuptools version incompatibility with TT-MLIR tools.
