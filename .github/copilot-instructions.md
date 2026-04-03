@@ -3,6 +3,7 @@
 When working in this repository:
 
 - Put human-readable manuals in `docs/manuals/`
+- The manual should be detailed enough so that a human beginner in Ai an Linux can follow the command step by step without having the script
 - Put runnable scripts in `scripts/`
 - Put execution reports and gap analyses in `reports/`
 - Prefer bash scripts for Linux automation
