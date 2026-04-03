@@ -106,6 +106,7 @@ Create:
 - docs/manuals/tt-xla-linux-manual.md, the manual shall detail all the tasks, if some information are on website, copy/paste the info on this website, the manual shall allow a user to follow step by step what the script is doing to install and run the tool given as input
 - scripts/tt-xla-bootstrap.sh
 - reports/tt-xla-installation-report.md
+- The manual should be detailed enough so that a human beginner in Ai an Linux can follow the command step by step without having the script
 - if task failed due to credential or access issue, generate a separarate .md report fo this named "credential_or_access_issues.md"
 
 ---
