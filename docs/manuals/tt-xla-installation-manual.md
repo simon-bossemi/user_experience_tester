@@ -1,7 +1,7 @@
 # TT-XLA Installation Manual
 
 **Tool:** TT-XLA (Tenstorrent XLA)  
-**Target hardware:** BOS A0 (Tenstorrent Blackhole: p100a / p150a / p150b)  
+**Target hardware:** HOST with BOS A0 Eagle-N
 **Audience:** Beginners in AI and Linux
 
 This file covers installation only:
