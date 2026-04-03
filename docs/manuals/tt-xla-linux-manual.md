@@ -1,9 +1,9 @@
 # TT-XLA Linux Installation and Usage Manual
 
 **Tool:** TT-XLA (Tenstorrent XLA)  
-**Version:** latest (as of 2026)  
+**Target hardware:** BOS A0 (Tenstorrent Blackhole — p100a / p150a / p150b)  
 **Audience:** Beginners in AI and Linux  
-**Sources:** [GitHub tenstorrent/tt-xla](https://github.com/tenstorrent/tt-xla) · [Official Getting Started](https://raw.githubusercontent.com/tenstorrent/tt-xla/main/docs/src/getting_started.md) · [BOS Internal Tutorial](https://bos-semi.atlassian.net/wiki/spaces/AIMultimed/pages/337346574/TT-XLA+Installation)
+**Sources:** [GitHub bos-semi/tt-xla](https://github.com/bos-semi/tt-xla) · [BOS Internal Tutorial (PDF)](../inputs/AIMultimed-TT-XLA%20Installation-030426-023800.pdf) · [Tenstorrent Getting Started](https://raw.githubusercontent.com/tenstorrent/tt-xla/main/docs/src/getting_started.md)
 
 ---
 
@@ -11,7 +11,7 @@
 
 1. [Overview and Key Concepts](#1-overview-and-key-concepts)
 2. [Prerequisites](#2-prerequisites)
-3. [For BOS A0 (Blackhole) — Hardware and BIOS Setup](#3-for-bos-a0-blackhole--hardware-and-bios-setup)
+3. [BOS A0 (Blackhole) — Hardware and BIOS Setup](#3-bos-a0-blackhole--hardware-and-bios-setup)
 4. [Software Installation — Driver and Kernel Module](#4-software-installation--driver-and-kernel-module)
 5. [Software Installation — Option A: Wheel (Recommended)](#5-software-installation--option-a-wheel-recommended)
 6. [Software Installation — Option B: Docker](#6-software-installation--option-b-docker)
@@ -47,9 +47,9 @@ FX tracing — PyTorch reads your model and builds a computation graph
        ↓
 StableHLO — a standard AI compiler format
        ↓
-TT-MLIR compiler — converts to Tenstorrent chip instructions
+TT-MLIR compiler — converts to BOS A0 chip instructions
        ↓
-Tenstorrent NPU (the AI accelerator card in your PC)
+BOS A0 NPU (the Blackhole AI accelerator card in your workstation)
        ↓
 Result tensor (numbers representing predictions)
 ```
@@ -66,21 +66,25 @@ benchmark model and is available in the `torchvision` Python library with no man
 
 ### 2.1 Hardware
 
-You **must** have a physical Tenstorrent PCIe card installed inside your computer.
-TT-XLA cannot run AI models on CPU or without this card.
+This manual targets **BOS A0** systems — workstations or servers equipped with a Tenstorrent
+**Blackhole** PCIe add-in card (p100a, p150a, or p150b).
 
-| Requirement | Wormhole (n150/n300) | BOS A0 — Blackhole (p100a/p150a/p150b) |
-|-------------|---------------------|----------------------------------------|
-| PCIe card | Wormhole n150 or n300 | Blackhole p100a, p150a, or p150b |
-| PCIe slot | Gen 3 x16 or better | **Gen 5.0 x16** (required; no bifurcation) |
-| Power connector | Standard 8-pin or 6+2 PCIe | **12+4-pin 12V-2x6** (ATX 3.1 certified PSU required) |
-| Adjacent slot | Not required | Leave empty for airflow (p100a/p150a are dual-slot) |
-| RAM | ≥ 32 GB recommended | ≥ 32 GB recommended |
-| Hugepages | Configured by installer | Configured by installer |
+| Requirement | BOS A0 — Blackhole (p100a / p150a / p150b) |
+|-------------|---------------------------------------------|
+| PCIe card | Blackhole p100a, p150a, or p150b |
+| PCIe slot | **Gen 5.0 x16** (no bifurcation; lane-sharing disabled) |
+| Power connector | **12+4-pin 12V-2x6** (ATX 3.1 certified PSU required) |
+| Adjacent PCIe slot | Leave empty — p100a/p150a are dual-slot with active coolers |
+| RAM | ≥ 32 GB recommended |
+| Device path | `/dev/bos/<device_id>` |
 
-> **BOS A0 note:** The Blackhole family (p100a, p150a, p150b) uses PCIe Gen 5.0 and a 12+4-pin
-> power connector. An ATX 3.1 certified power supply is required. Using an older PSU may cause
-> system instability. The p150b uses a passive heatsink and is designed for rack-mounted systems.
+> ⚠️ An **ATX 3.1 certified power supply** is required. Standard 8-pin PCIe power cables are
+> physically incompatible with the 12V-2x6 connector. The p150b uses a passive heatsink and is
+> designed for rack-mounted systems with forced airflow.
+
+> **Wormhole users (n150/n300):** The core Python workflow in Sections 5–9 also works on Wormhole
+> hardware with device path `/dev/tenstorrent/<id>` and PCIe Gen 3. Sections 3 and parts of 6–7
+> that are BOS A0-specific are labelled accordingly.
 
 ### 2.2 Operating System
 
@@ -115,10 +119,9 @@ jq                     # required by TT-Installer (see Section 4)
 
 ---
 
-## 3. For BOS A0 (Blackhole) — Hardware and BIOS Setup
+## 3. BOS A0 (Blackhole) — Hardware and BIOS Setup
 
-> **Note:** This section is specific to **BOS A0** systems using Tenstorrent Blackhole cards
-> (p100a, p150a, p150b). If you are using a Wormhole card (n150, n300), skip to [Section 4](#4-software-installation--driver-and-kernel-module).
+Complete all steps in this section before installing any software.
 
 ### 3.1 Physical Installation
 
@@ -169,16 +172,25 @@ Some motherboards fail to enumerate Blackhole cards when PCIe speed is set to "A
 After completing BIOS setup, boot into Linux and confirm the card is enumerated:
 
 ```bash
+# Option 1 — check by product name:
 lspci | grep -i tenstorrent
-# Expected output for Blackhole:
+# Expected output for BOS A0 (Blackhole):
 # 01:00.0 Processing accelerators: Tenstorrent Inc. Blackhole (rev 01)
 
-# Alternative using Tenstorrent's PCI vendor ID:
+# Option 2 — check by PCI vendor ID (more reliable if driver not yet installed):
 lspci -d 1e52:
+# Expected: at least one line beginning with a bus address
 ```
 
-If no output appears, the card was not detected — recheck power connection, PCIe slot, and BIOS
-speed settings.
+Also confirm the BOS device directory is present after driver install (see Section 4):
+
+```bash
+ls /dev/bos/
+# Expected: 0   (or 0 1 2 … for multi-device setups)
+```
+
+If no output appears from `lspci`, the card was not detected — recheck power connection, PCIe
+slot, and BIOS speed settings.
 
 ### 3.4 Check Firmware LED
 
@@ -191,8 +203,6 @@ If neither is observed, the power cable may not be properly connected.
 ---
 
 ## 4. Software Installation — Driver and Kernel Module
-
-> **Note:** This step applies to all Tenstorrent hardware (Wormhole and Blackhole/BOS A0).
 
 The recommended installation path is the **TT-Installer** script, which automatically installs:
 - `tt-kmd` — the kernel module (driver)
@@ -208,6 +218,15 @@ sudo apt update && sudo apt install -y curl jq
 ```
 
 ### 4.2 Run the TT-Installer
+
+> **Security note:** The one-liner below downloads and immediately executes an installation
+> script. If you prefer to inspect it first, run:
+> ```bash
+> curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh \
+>     -o /tmp/tt-installer.sh
+> less /tmp/tt-installer.sh          # review the script
+> bash /tmp/tt-installer.sh          # then execute it
+> ```
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh)"
@@ -232,13 +251,13 @@ source ~/.tenstorrent-venv/bin/activate
 tt-smi
 ```
 
-**Expected output:** The `tt-smi` interface shows one or more Tenstorrent devices under the
-"Device Information" pane. For a single Blackhole p150a, you will see one device entry.
+**Expected output:** The `tt-smi` interface shows one or more devices under the "Device
+Information" pane. For a single BOS A0 Blackhole p150a, you will see one device entry.
 
-Alternatively, check device files directly:
+Check that the BOS A0 device directory was created:
 
 ```bash
-ls /dev/tenstorrent/
+ls /dev/bos/
 # Expected: 0  (or 0 1 2 ... for multi-card setups)
 ```
 
@@ -322,13 +341,13 @@ package is not on the main PyPI server.
 ### 5.3 Install PyTorch and torchvision (for ResNet50)
 
 ```bash
-# Install PyTorch (CPU build sufficient for tracing; TT device handles compute)
+# Install PyTorch and torchvision (CPU build — the TT device handles compute):
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-
-# Install torch-xla (Tenstorrent's fork is bundled inside pjrt-plugin-tt,
-# but if a standalone torch-xla is needed):
-pip install torch-xla
 ```
+
+> **Do not install a standalone `torch-xla` package.** The `pjrt-plugin-tt` wheel already
+> bundles Tenstorrent's fork of `torch-xla` internally. Installing a separate `torch-xla` from
+> PyPI will create a version conflict and may break the TT backend.
 
 ### 5.4 Verify Installation
 
@@ -341,11 +360,11 @@ python3 -c "import jax; print(jax.devices('tt'))"
 
 **Expected output:**
 ```
-# Wormhole:
-[TTDevice(id=0, arch=Wormhole_b0)]
-
-# BOS A0 (Blackhole):
+# BOS A0 (Blackhole) — primary target:
 [TTDevice(id=0, arch=blackhole)]
+
+# Wormhole (if applicable):
+[TTDevice(id=0, arch=Wormhole_b0)]
 ```
 
 **Check 2 — PyTorch backend registered:**
@@ -662,7 +681,15 @@ Activate the toolchain environment (required before building TT-XLA):
 
 ```bash
 source env/activate
+```
 
+> **What `source env/activate` does:** The `cmake --build env/build` step above generates an
+> `env/activate` shell script inside the `tt-mlir` directory. Running `source env/activate` sets
+> up the LLVM/MLIR environment variables (compilers, linkers, library paths) needed to compile
+> TT-XLA. You must run this in every new shell session before running any `cmake` or `ninja`
+> commands in the TT-XLA build.
+
+```bash
 # Confirm Python 3.12 is active:
 python --version
 # Expected: Python 3.12.x
@@ -690,6 +717,17 @@ git submodule update --init --recursive
 
 # Activate the bundled virtual environment:
 source venv/activate
+```
+
+> **What `source venv/activate` does:** The `tt-xla` repository ships a `venv/activate`
+> shell script (not a standard Python venv activation). Running it:
+> 1. Creates a Python 3.12 virtual environment at `$TT_XLA_RUNTIME_ROOT/venv/` if it does not
+>    exist yet (requires `python3.12` to be installed — see Section 7.1).
+> 2. Activates that virtual environment for the current shell session.
+> 3. Sets `PYTHONPATH` and other variables needed by TT-XLA's test runner and build system.
+>
+> You must run `source venv/activate` **after** each `source env/activate` from the TT-MLIR
+> toolchain step, and in every new shell session before running `pytest` or Python tools.
 
 # Configure the BOS A0 build:
 cmake -G Ninja -B build \
@@ -1058,11 +1096,13 @@ Downloading: "https://download.pytorch.org/models/resnet50-0676ba61.pth" to ...
 
 ### 10.3 Hardware Detection
 
+For **BOS A0 (Blackhole)** — the primary target:
+
 ```bash
 $ lspci | grep -i tenstorrent
-01:00.0 Processing accelerators: Tenstorrent Inc. Wormhole (rev 01)
+01:00.0 Processing accelerators: Tenstorrent Inc. Blackhole (rev 01)
 
-$ ls /dev/tenstorrent/
+$ ls /dev/bos/
 0
 
 $ grep HugePages_Total /proc/meminfo
@@ -1075,14 +1115,16 @@ HugePages_Total:       4
 
 ### Problem: `No TT devices found` or `jax.devices('tt')` returns `[]`
 
-1. Verify the kernel module is loaded:
+1. Verify the kernel module is loaded and BOS device directory exists:
    ```bash
    lsmod | grep tt
-   ls /dev/tenstorrent/
+   ls /dev/bos/
    ```
 2. Re-run the TT-Installer:
    ```bash
-   /bin/bash -c "$(curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh)"
+   curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh \
+       -o /tmp/tt-installer.sh
+   bash /tmp/tt-installer.sh
    sudo reboot
    ```
 3. Check hugepages:
@@ -1115,22 +1157,23 @@ lsmod | grep tenstorrent
 # Expected: tenstorrent  131072  0
 # If nothing: the driver is not loaded
 
-# 2. Do device files exist?
-ls /dev/tenstorrent/
+# 2. Do BOS device files exist?
+ls /dev/bos/
 # Expected: 0
 # If "No such file or directory": driver not installed
 
 # 3. Is the card visible on the PCIe bus?
-lspci | grep -i tenstorrent
+lspci -d 1e52:
 # Expected: line starting with a bus address
 ```
 
 **Fix:**
 ```bash
-# Re-run the TT-Installer
-curl -L https://installer.tenstorrent.com/tt-installer.sh -o /tmp/tt-installer.sh
-chmod +x /tmp/tt-installer.sh
-sudo /tmp/tt-installer.sh
+# Re-run the TT-Installer (inspect first, then execute):
+sudo apt-get install -y curl jq
+curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh \
+    -o /tmp/tt-installer.sh
+bash /tmp/tt-installer.sh
 sudo reboot
 ```
 
@@ -1338,35 +1381,34 @@ See [Section 7.4 — Known BOS A0 build issue](#74-build-tt-xla) for the full fi
 
 ## 12. Replay Checklist
 
-Use this checklist to verify a fresh install from scratch.
+Use this checklist to verify a fresh BOS A0 install from scratch.
 
-### For all hardware (Wormhole and BOS A0 / Blackhole)
+### Hardware and driver (BOS A0)
 
-- [ ] Tenstorrent PCIe card is physically installed and detected (`lspci | grep -i tenstorrent`)
-- [ ] `ls /dev/tenstorrent/` shows at least one device file
-- [ ] Hugepages verified (`grep HugePages_Total /proc/meminfo` ≥ 1) — configured by TT-Installer
+- [ ] ATX 3.1 certified PSU connected with 12+4-pin 12V-2x6 cable
+- [ ] Adjacent PCIe slot is empty (for airflow — p100a/p150a)
+- [ ] BIOS: PCIe AER Reporting Mechanism set to "OS First"
+- [ ] BIOS: PCIe slot speed forced to Gen 5 (not "Auto")
+- [ ] Card power LED is lit and fan spins (p100a/p150a)
+- [ ] `lspci -d 1e52:` shows a Tenstorrent/Blackhole device entry
+- [ ] TT-Installer completed successfully and system rebooted
+- [ ] `ls /dev/bos/` shows at least one device file
+- [ ] `tt-smi` shows the Blackhole device in the Device Information pane
+- [ ] `grep HugePages_Total /proc/meminfo` shows ≥ 1
+
+### Python wheel install (Option A)
+
 - [ ] Python 3.11 or 3.12 virtual environment created and activated
 - [ ] `pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.com/` succeeds
-- [ ] `python3 -c "import jax; print(jax.devices('tt'))"` shows a TT device
-- [ ] `pip install torch torchvision` succeeds
+- [ ] `python3 -c "import jax; print(jax.devices('tt'))"` returns `arch=blackhole`
+- [ ] `pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu` succeeds
+- [ ] **No** standalone `torch-xla` installed (bundled in `pjrt-plugin-tt`)
 - [ ] `python3 -c "import torch_plugin_tt; print('OK')"` succeeds
 - [ ] ResNet50 smoke test runs without errors: `python run_resnet50_tt.py`
 - [ ] Output shape is `torch.Size([1, 1000])`
 - [ ] (Optional) JAX matmul test passes
 
-### Additional checks for BOS A0 (Blackhole only)
-
-- [ ] ATX 3.1 certified PSU connected with 12+4-pin 12V-2x6 cable
-- [ ] Adjacent PCIe slot is empty (for airflow)
-- [ ] BIOS: PCIe AER Reporting Mechanism set to "OS First"
-- [ ] BIOS: PCIe slot speed forced to Gen 5 (not "Auto")
-- [ ] Card power LED is lit and fan spins (p100a/p150a)
-- [ ] `lspci -d 1e52:` shows a Tenstorrent device entry
-- [ ] `ls /dev/bos/` shows at least one device file
-- [ ] `tt-smi` shows the Blackhole device in the Device Information pane
-- [ ] `jax.devices('tt')` returns `arch=blackhole`
-
-### Additional checks for BOS A0 build-from-source
+### Build-from-source (Option C — BOS A0)
 
 - [ ] GitHub SSH access confirmed (`ssh -T git@github.com` shows your username)
 - [ ] Both `bos-semi/tt-mlir` (branch `develop`) and `bos-semi/tt-xla` (branch `release/a0`) cloned
