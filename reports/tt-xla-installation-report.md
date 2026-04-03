@@ -3,11 +3,13 @@
 **Tool:** TT-XLA (Tenstorrent XLA)  
 **Report type:** Gap analysis, assumption log, and installation blockers  
 **Author:** user_experience_tester agent  
-**Date:** 2026 (second run — revised)  
+**Date:** 2026  
 **Sources consulted:**
 - [BOS Internal Tutorial](https://bos-semi.atlassian.net/wiki/spaces/AIMultimed/pages/337346574/TT-XLA+Installation) *(internal — not accessible during this analysis)*
 - [GitHub tenstorrent/tt-xla](https://github.com/tenstorrent/tt-xla)
 - [Official Getting Started (raw)](https://raw.githubusercontent.com/tenstorrent/tt-xla/main/docs/src/getting_started.md)
+- [Tenstorrent Blackhole Hardware Installation](https://github.com/tenstorrent/tenstorrent.github.io/blob/main/core/aibs/blackhole/installation.md)
+- [Tenstorrent Software Stack Installation](https://github.com/tenstorrent/tenstorrent.github.io/blob/main/core/getting-started/README.md)
 - Web search synthesis (Tenstorrent docs, DeepWiki, community guides)
 
 ---
@@ -89,12 +91,19 @@ necessary through analysis of the repository and related resources:
 ### 3.1 Driver / Kernel Module Setup
 
 The public documentation mentions "follow hardware setup at docs.tenstorrent.com" but does not
-give a direct command. The TT-Installer script is the recommended path:
+give a direct command. The new TT-Installer script (v1.6+) is the recommended path:
 
 ```bash
-curl -L https://installer.tenstorrent.com/tt-installer.sh -o /tmp/tt-installer.sh
-sudo /tmp/tt-installer.sh
+# Prerequisites (required by the new installer):
+sudo apt-get install -y curl jq
+
+# Run the installer:
+/bin/bash -c "$(curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh)"
 ```
+
+> **Note:** The old installer URL (`https://installer.tenstorrent.com/tt-installer.sh`) is
+> deprecated. The new installer is hosted at GitHub Releases and also flashes firmware via
+> TT-Flash, which is a new step not in the original manual.
 
 This was **inferred** from community guides and the TT-SMI repository README, not from the
 official TT-XLA getting-started guide.
@@ -138,6 +147,77 @@ adds unnecessary size.
 
 ---
 
+## 3b. BOS A0 (Blackhole) Specific Gaps
+
+### 3b.1 BIOS Configuration Not Documented in TT-XLA Guides
+
+The TT-XLA getting-started guide makes no mention of BIOS requirements. For Blackhole hardware,
+two BIOS settings are **mandatory** before running the installer:
+
+1. **PCIe AER Reporting Mechanism → "OS First"**  
+   Without this, `tt-smi` will fail to enumerate devices. Source: official Tenstorrent
+   getting-started guide.
+
+2. **PCIe slot speed → Gen 5 (not "Auto")**  
+   Some motherboards fail to enumerate Blackhole cards when PCIe speed is set to Auto. Source:
+   Tenstorrent Blackhole installation troubleshooting docs.
+
+These steps are now documented in Section 3 of the manual.
+
+### 3b.2 Hardware Form Factor Differences
+
+The Blackhole p100a and p150a are dual-slot boards with active coolers. The adjacent PCIe slot
+must be left empty for adequate airflow. The p150b uses a passive heatsink and is designed for
+rack-mounted systems with forced airflow. **Not mentioned** in the TT-XLA getting started docs.
+
+### 3b.3 Power Connector Requirement
+
+Blackhole cards require a **12+4-pin 12V-2x6 power connector** and an **ATX 3.1 certified PSU**.
+Standard 8-pin PCIe power cables are incompatible. **Not mentioned** in the TT-XLA getting
+started docs. Sourced from the official Blackhole hardware installation guide.
+
+### 3b.4 Expected Architecture String Changes
+
+The `jax.devices('tt')` expected output changes between hardware families:
+- **Wormhole:** `[TTDevice(id=0, arch=Wormhole_b0)]`
+- **Blackhole (BOS A0):** `[TTDevice(id=0, arch=blackhole)]`
+
+The original manual and script only showed the Wormhole string. Both are now documented.
+
+### 3b.5 PCI Vendor ID for Debugging
+
+Tenstorrent's PCI vendor ID is `1e52`. When Blackhole cards fail to show up in standard
+`lspci | grep tenstorrent` output (due to driver not yet naming the device), the following
+command can reveal whether the card is at least enumerated:
+
+```bash
+lspci -d 1e52:
+```
+
+### 3b.6 TT-SMI for Post-Install Verification
+
+On Blackhole hardware, the recommended post-install verification tool is `tt-smi` (installed
+by the new TT-Installer), not just `ls /dev/tenstorrent/`. The `tt-smi` command provides device
+health, firmware version, and PCIe link status in a single view.
+
+### 3b.7 New TT-Installer Format and `jq` Dependency
+
+The new TT-Installer (v1.6+) has a **different invocation** than the one previously documented:
+
+| Old (deprecated) | New (current) |
+|-----------------|---------------|
+| `curl -L https://installer.tenstorrent.com/tt-installer.sh \| bash` | `/bin/bash -c "$(curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh)"` |
+
+The new installer also requires `jq` to be installed beforehand:
+```bash
+sudo apt-get install -y curl jq
+```
+
+The new installer is interactive (prompts for Metalium container, Python venv location, etc.)
+and also flashes firmware to the card via `tt-flash`, which was not part of the old workflow.
+
+---
+
 ## 4. Assumptions Made
 
 | Assumption | Basis | Confidence |
@@ -150,6 +230,7 @@ adds unnecessary size.
 | Hugepages size is 1 GB per page | TT-Metal documentation references `/dev/hugepages-1G` | High |
 | Ubuntu 22.04/24.04 are the target distros | Official getting_started.md mentions Ubuntu 24.04 for source build | High |
 | Tenstorrent firmware is up to date | Not verified — firmware updates may be required before driver installation | Unknown |
+| Blackhole `jax.devices` arch string is `blackhole` | Web search synthesis; not confirmed on live hardware | Medium |
 
 ---
 
@@ -193,10 +274,25 @@ Building TT-XLA from source requires:
 
 **Severity: High (for this report)**  
 The primary input tutorial (Atlassian Confluence page) could not be accessed. All analysis is
-based on public documentation only.
+based on public documentation only. **The GitHub Copilot agent does not have access to
+`bos-semi.atlassian.net`** — this is a missing integration between the GitHub agent and the
+BOS Semi Confluence workspace.
 
-**Action required:** Request Atlassian access or a PDF export of the internal tutorial, then
-update this report with any BOS-specific steps, hardware variants, or internal package sources.
+**Action required:** A developer with Atlassian Confluence access should:
+1. Review `https://bos-semi.atlassian.net/wiki/spaces/AIMultimed/pages/337346574/TT-XLA+Installation#For-BOS-A0`
+2. Diff the BOS A0-specific steps documented there against this report and the manual
+3. Update the manual with any proprietary hardware variants, internal package mirrors, or
+   BOS-specific configuration not captured here
+
+### 5.5 BOS A0 Blackhole Arch String Not Verified on Live Hardware
+
+**Severity: Low**  
+The expected `jax.devices('tt')` output for Blackhole (`arch=blackhole`) was determined through
+web search synthesis, not confirmed on a live BOS A0 system. The exact string may differ
+depending on the firmware version and software stack version.
+
+**Action required:** Verify on a live BOS A0 system and update the manual if the arch string
+differs.
 
 ---
 
@@ -204,8 +300,10 @@ update this report with any BOS-specific steps, hardware variants, or internal p
 
 | Environment | Hardware | Driver | Wheel Install | Source Build | Notes |
 |------------|---------|--------|--------------|--------------|-------|
-| Ubuntu 24.04 + TT card | ✅ | ✅ | ✅ | ✅ | Fully supported |
-| Ubuntu 22.04 + TT card | ✅ | ✅ | ✅ | ⚠️ | Source build needs Clang 20 manual install |
+| Ubuntu 24.04 + Wormhole | ✅ | ✅ | ✅ | ✅ | Fully supported |
+| Ubuntu 22.04 + Wormhole | ✅ | ✅ | ✅ | ⚠️ | Source build needs Clang 20 manual install |
+| Ubuntu 22.04 + BOS A0 (Blackhole) | ✅ | ✅ | ✅ | ⚠️ | BIOS AER + PCIe Gen5 config required |
+| Ubuntu 24.04 + BOS A0 (Blackhole) | ✅ | ✅ | ✅ | ✅ | BIOS AER + PCIe Gen5 config required |
 | Ubuntu 22.04, no hardware | N/A | N/A | ✅ (installs) | ⚠️ | Cannot execute — no device |
 | Docker (tt-xla-slim) | ✅ (passed through) | Pre-installed | Pre-installed | N/A | Cleanest path |
 | RHEL/CentOS | ✅ | ⚠️ | ⚠️ | ❌ | Untested; replace apt with dnf |
@@ -261,11 +359,15 @@ torch.Size([1, 1000])   # softmax logits over 1000 ImageNet classes
 2. **Add a hardware detection pre-flight check** to any CI/CD pipeline using TT-XLA, to fail
    fast with a clear message when no Tenstorrent device is present.
 
-3. **Request access to the BOS internal Atlassian tutorial** and merge any BOS-specific steps
-   into this report and the manual.
+3. **Connect the GitHub Copilot agent to Confluence**: The agent cannot access
+   `bos-semi.atlassian.net`. Providing a PDF export or public mirror of the BOS A0 Confluence
+   page would allow the agent to incorporate BOS-specific steps automatically.
 
-4. **Document firmware update procedure**: TT-Flash is needed to update card firmware; this is
-   separate from the kernel driver and may be required on first-time hardware setup.
+4. **Verify BOS A0 arch string on live hardware**: Confirm the exact output of
+   `jax.devices('tt')` on a Blackhole system and update the manual if needed.
 
-5. **Consider mirroring `pjrt-plugin-tt` wheels** to an internal artifact registry (e.g.,
+5. **Document firmware update procedure**: TT-Flash is needed to update card firmware; the new
+   TT-Installer runs it automatically, but manual re-flash steps are not yet documented.
+
+6. **Consider mirroring `pjrt-plugin-tt` wheels** to an internal artifact registry (e.g.,
    Nexus, Artifactory) to reduce dependency on Tenstorrent's external PyPI index.

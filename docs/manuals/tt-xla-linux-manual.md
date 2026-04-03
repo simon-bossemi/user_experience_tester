@@ -11,17 +11,16 @@
 
 1. [Overview and Key Concepts](#1-overview-and-key-concepts)
 2. [Prerequisites](#2-prerequisites)
-3. [How to Open a Terminal](#3-how-to-open-a-terminal)
-4. [Hardware Setup](#4-hardware-setup)
+3. [For BOS A0 (Blackhole) — Hardware and BIOS Setup](#3-for-bos-a0-blackhole--hardware-and-bios-setup)
+4. [Software Installation — Driver and Kernel Module](#4-software-installation--driver-and-kernel-module)
 5. [Software Installation — Option A: Wheel (Recommended)](#5-software-installation--option-a-wheel-recommended)
 6. [Software Installation — Option B: Docker](#6-software-installation--option-b-docker)
-7. [Software Installation — Option C: Build from Source (Advanced)](#7-software-installation--option-c-build-from-source-advanced)
-8. [ResNet50 PyTorch Model — Step-by-Step](#8-resnet50-pytorch-model--step-by-step)
+7. [Software Installation — Option C: Build from Source](#7-software-installation--option-c-build-from-source)
+8. [ResNet50 PyTorch Model — Discovery and Compilation](#8-resnet50-pytorch-model--discovery-and-compilation)
 9. [Running Inference](#9-running-inference)
 10. [Expected Outputs](#10-expected-outputs)
 11. [Troubleshooting](#11-troubleshooting)
 12. [Replay Checklist](#12-replay-checklist)
-13. [Glossary](#13-glossary)
 
 ---
 
@@ -70,13 +69,18 @@ benchmark model and is available in the `torchvision` Python library with no man
 You **must** have a physical Tenstorrent PCIe card installed inside your computer.
 TT-XLA cannot run AI models on CPU or without this card.
 
-| Requirement | Details |
-|-------------|---------|
-| Tenstorrent PCIe card | Wormhole (n150 or n300) or Grayskull |
-| PCIe slot | Gen 3 x16 or better (the wide black slot on a desktop motherboard) |
-| RAM | 32 GB system RAM recommended (minimum 16 GB) |
-| Hugepages | 1 GB hugepages — configured automatically by the installer |
-| Power supply | Ensure your PSU has enough wattage for the card (see card datasheet) |
+| Requirement | Wormhole (n150/n300) | BOS A0 — Blackhole (p100a/p150a/p150b) |
+|-------------|---------------------|----------------------------------------|
+| PCIe card | Wormhole n150 or n300 | Blackhole p100a, p150a, or p150b |
+| PCIe slot | Gen 3 x16 or better | **Gen 5.0 x16** (required; no bifurcation) |
+| Power connector | Standard 8-pin or 6+2 PCIe | **12+4-pin 12V-2x6** (ATX 3.1 certified PSU required) |
+| Adjacent slot | Not required | Leave empty for airflow (p100a/p150a are dual-slot) |
+| RAM | ≥ 32 GB recommended | ≥ 32 GB recommended |
+| Hugepages | Configured by installer | Configured by installer |
+
+> **BOS A0 note:** The Blackhole family (p100a, p150a, p150b) uses PCIe Gen 5.0 and a 12+4-pin
+> power connector. An ATX 3.1 certified power supply is required. Using an older PSU may cause
+> system instability. The p150b uses a passive heatsink and is designed for rack-mounted systems.
 
 ### 2.2 Operating System
 
@@ -99,176 +103,157 @@ TT-XLA cannot run AI models on CPU or without this card.
 | Wheel install (recommended) | Python 3.11 or 3.12 | Works on Ubuntu 22.04+ |
 | Build from source | Python 3.12 **required** | Only for advanced users |
 
-> **Linux beginner tip:** Check your Python version with:
-> ```bash
-> python3 --version
-> ```
-> If you see `Python 3.11.x` or `Python 3.12.x`, you are ready.
-> If the version is lower (e.g., 3.10 or 3.8), install Python 3.11 first:
-> ```bash
-> sudo apt-get update
-> sudo apt-get install -y python3.11 python3.11-venv python3.11-dev
-> ```
-
-### 2.4 Internet Connection
-
-Required to download the TT-XLA wheel, PyTorch, and ResNet50 pretrained weights.
-All downloads are performed automatically by the commands in this manual.
-
-### 2.5 Sudo (Administrator) Access
-
-Installing the Tenstorrent kernel driver requires `sudo` access.
-You will be prompted for your password where needed.
+```bash
+# Minimum required tools (check with which/--version):
+git --version          # >= 2.30
+python3 --version      # >= 3.11
+pip --version          # >= 23
+lspci                  # to verify hardware detection
+curl                   # to download the TT-Installer
+jq                     # required by TT-Installer (see Section 4)
+```
 
 ---
 
-## 3. How to Open a Terminal
+## 3. For BOS A0 (Blackhole) — Hardware and BIOS Setup
 
-All commands in this manual are run in a **terminal** (also called a "shell" or "command line").
+> **Note:** This section is specific to **BOS A0** systems using Tenstorrent Blackhole cards
+> (p100a, p150a, p150b). If you are using a Wormhole card (n150, n300), skip to [Section 4](#4-software-installation--driver-and-kernel-module).
 
-**On Ubuntu Desktop (GNOME):**
-1. Press the **Super key** (Windows key on most keyboards) to open the Activities overview.
-2. Type `terminal` and press **Enter**.
-3. A black or dark window appears — this is your terminal.
+### 3.1 Physical Installation
 
-**Keyboard shortcut:**
-- Press `Ctrl + Alt + T` to open a terminal directly.
+Before powering on, complete the following steps:
 
-**If you are already connected via SSH to a remote machine:**
-- You are already in a terminal. Proceed with the commands below.
+1. **Disconnect power** from the host computer.
+2. Verify the motherboard has a **PCIe Gen 5.0 x16 slot** (no bifurcation).
+3. Insert the Blackhole add-in board into the PCIe x16 slot and secure it with the retaining screw.
+4. Leave the **adjacent PCIe slot empty** (p100a and p150a are dual-slot boards with active
+   coolers; airflow through the adjacent gap is required).
+5. Connect a **12+4-pin 12V-2x6 power cable** to the connector on the back of the card.
+   Ensure the cable is fully and securely seated.
+6. Connect power and power on the system.
 
-> **What does a prompt look like?**
-> After opening a terminal you will see something like:
-> ```
-> yourname@hostname:~$
-> ```
-> The `$` at the end means the terminal is ready for your input. Type commands after the `$`.
+> ⚠️ An **ATX 3.1 certified power supply** is required. Older PSUs with standard 8-pin PCIe
+> connectors are not compatible with the 12V-2x6 connector.
 
----
+### 3.2 BIOS Configuration (Required for BOS A0)
 
-## 4. Hardware Setup
+Two BIOS settings must be configured before running TT-SMI or the TT-Installer.
 
-> **Note:** This entire section requires physical Tenstorrent hardware installed in your machine.
-> If you are testing inside a Docker container that already has hardware access, skip to
-> [Section 5](#5-software-installation--option-a-wheel-recommended).
+#### 3.2.1 Set PCIe AER Reporting Mechanism to "OS First"
 
-### 4.1 Verify Hardware Detection
+Tenstorrent's `tt-smi` management tool requires the PCIe AER (Advanced Error Reporting) mechanism
+to be handled by the OS, not the firmware.
 
-First, confirm your system can see the Tenstorrent card:
+1. Enter the BIOS/UEFI setup (usually `Del`, `F2`, or `F12` at boot).
+2. Navigate to the PCIe or chipset settings. The exact menu path varies by motherboard vendor;
+   look for a setting called **"PCIe AER Reporting Mechanism"**, **"PCIe Error Reporting"**,
+   or similar under **Motherboard Information** or **Advanced > PCIe Subsystem**.
+3. Set the value to **"OS First"** (or **"OS Native"** on some platforms).
+4. Save and exit.
+
+> **Note:** If you update or reset your BIOS, you must reconfigure this setting.
+> If you are using a TT-QuietBox appliance, this setting is already correct and can be skipped.
+
+#### 3.2.2 Force PCIe Speed to Gen 5 (Do Not Use "Auto")
+
+Some motherboards fail to enumerate Blackhole cards when PCIe speed is set to "Auto".
+
+1. In BIOS, find the PCIe speed setting for the target slot (e.g. **"PCIe Link Speed"** or
+   **"PCIE x16 Speed"**).
+2. Set it explicitly to **Gen 5.0** (or Gen 4.0 if Gen 5.0 causes issues).
+3. Save and exit.
+
+### 3.3 Verify Hardware Detection
+
+After completing BIOS setup, boot into Linux and confirm the card is enumerated:
 
 ```bash
 lspci | grep -i tenstorrent
+# Expected output for Blackhole:
+# 01:00.0 Processing accelerators: Tenstorrent Inc. Blackhole (rev 01)
+
+# Alternative using Tenstorrent's PCI vendor ID:
+lspci -d 1e52:
 ```
 
-**What this command does:** `lspci` lists all hardware devices connected via the PCIe bus.
-We filter the output to show only Tenstorrent devices.
+If no output appears, the card was not detected — recheck power connection, PCIe slot, and BIOS
+speed settings.
 
-**Expected output:**
-```
-01:00.0 Processing accelerators: Tenstorrent Inc. Wormhole (rev 01)
-```
+### 3.4 Check Firmware LED
 
-> If you see no output at all, the card may not be seated correctly, or the machine needs a
-> reboot after the card was installed. Try `sudo reboot` and then repeat this step.
+After power-on, verify:
+- The **fan spins** (for p100a/p150a).
+- The **green power LED** on the card illuminates.
 
-### 4.2 Install the TT Kernel Module Driver
+If neither is observed, the power cable may not be properly connected.
 
-The Tenstorrent card needs a **kernel driver** — a piece of software that lets the operating
-system communicate with the card. The official **TT-Installer** handles this automatically.
+---
 
-```bash
-# Step 1: Download the installer script
-curl -L https://installer.tenstorrent.com/tt-installer.sh -o /tmp/tt-installer.sh
+## 4. Software Installation — Driver and Kernel Module
 
-# Step 2: Make it executable
-chmod +x /tmp/tt-installer.sh
+> **Note:** This step applies to all Tenstorrent hardware (Wormhole and Blackhole/BOS A0).
 
-# Step 3: Run it with administrator privileges
-sudo /tmp/tt-installer.sh
-```
-
-**What this installs:**
+The recommended installation path is the **TT-Installer** script, which automatically installs:
 - `tt-kmd` — the kernel module (driver)
-- `tt-smi` — the Tenstorrent System Management Interface (like `nvidia-smi` for NVIDIA GPUs)
-- Hugepage configuration — special memory pages required by the card's runtime
+- `tt-flash` — firmware update utility
+- system firmware (flashed to the card)
+- hugepage configuration
+- `tt-smi` — the Tenstorrent System Management Interface
 
-> **Source:** https://docs.tenstorrent.com/getting-started/README.html#software-installation
-
-**Expected output during installation:**
-```
-[TT-Installer] Detecting system...
-[TT-Installer] Installing tt-kmd kernel module...
-[TT-Installer] Configuring hugepages...
-[TT-Installer] Installation complete.
-```
-
-### 4.3 Reboot the Machine
-
-After the driver is installed, you **must reboot** for it to take effect:
+### 4.1 Install Prerequisites
 
 ```bash
-sudo reboot
+sudo apt update && sudo apt install -y curl jq
 ```
 
-Your terminal will close. Wait for the machine to restart, then open a new terminal.
-
-### 4.4 Verify Driver and Device Files
-
-After rebooting, confirm the driver loaded and the device files exist:
+### 4.2 Run the TT-Installer
 
 ```bash
-# Check that the device directory exists
+/bin/bash -c "$(curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh)"
+```
+
+During the installation you will be prompted interactively:
+- **"OK to continue?"** — answer `Y`
+- **sudo password** — enter your user password
+- **Install TT-Metalium container?** — answer `Y` if you need TT-NN; answer `N` for TT-XLA only
+- **Install Model Demos container?** — answer `N` unless you need pre-built model demos (large, ~10 GB)
+- **Python package location** — press Enter to accept the default (new venv at `~/.tenstorrent-venv`)
+- **"Would you like to reboot now?"** — answer `Y` (required on first install)
+
+> **Source:** https://docs.tenstorrent.com/getting-started/README.html
+
+### 4.3 Verify After Reboot
+
+After rebooting, activate the environment and run `tt-smi`:
+
+```bash
+source ~/.tenstorrent-venv/bin/activate
+tt-smi
+```
+
+**Expected output:** The `tt-smi` interface shows one or more Tenstorrent devices under the
+"Device Information" pane. For a single Blackhole p150a, you will see one device entry.
+
+Alternatively, check device files directly:
+
+```bash
 ls /dev/tenstorrent/
+# Expected: 0  (or 0 1 2 ... for multi-card setups)
 ```
 
-**Expected output:**
-```
-0
-```
-This means one Tenstorrent device is available. With multiple cards you would see `0  1  2  ...`.
-
-```bash
-# Check driver is loaded as a kernel module
-lsmod | grep tenstorrent
-```
-
-**Expected output:**
-```
-tenstorrent           131072  0
-```
-
-### 4.5 Verify Hugepages
-
-The TT-Metal runtime (used internally by TT-XLA) requires **1 GB hugepages** — large blocks of
-memory that the card can access efficiently.
+### 4.4 Verify Hugepages
 
 ```bash
 grep -i hugepage /proc/meminfo
+# Expected: HugePages_Total should be >= 1
 ```
 
-**Expected output (at minimum):**
-```
-HugePages_Total:       4
-HugePages_Free:        4
-HugePages_Rsvd:        0
-HugePages_Surp:        0
-Hugepagesize:       1048576 kB
-```
-
-If `HugePages_Total` is 0, configure them manually:
+If `HugePages_Total` is 0, configure manually:
 
 ```bash
-# Set 4 hugepages (4 × 1 GB = 4 GB reserved)
 sudo sysctl -w vm.nr_hugepages=4
-
-# Make the setting permanent across reboots
 echo 'vm.nr_hugepages=4' | sudo tee -a /etc/sysctl.conf
-```
-
-**Verify again:**
-```bash
-grep HugePages_Total /proc/meminfo
-# Expected: HugePages_Total:       4
 ```
 
 ---
@@ -279,9 +264,6 @@ This is the **fastest and simplest** way to get started. A **wheel** is a pre-co
 package — no compiling needed on your side.
 
 ### 5.1 Create a Python Virtual Environment
-
-A **virtual environment** is an isolated Python workspace. It keeps the TT-XLA dependencies
-separate from other Python packages on your system, preventing conflicts.
 
 ```bash
 # Create a virtual environment using Python 3.11
@@ -314,11 +296,6 @@ Upgrade the package management tools:
 pip install --upgrade pip wheel setuptools
 ```
 
-**Expected output:**
-```
-Successfully installed pip-24.x wheel-0.x setuptools-xx.x
-```
-
 ### 5.2 Install the TT-XLA PJRT Plugin Wheel
 
 ```bash
@@ -336,27 +313,23 @@ package is not on the main PyPI server.
 - `torch_plugin_tt` — PyTorch backend wrapper
 - `tt-metal` — low-level Tenstorrent runtime kernels
 
-**Expected output (last few lines):**
-```
-Collecting pjrt-plugin-tt
-  Downloading pjrt_plugin_tt-x.x.x-cp311-cp311-linux_x86_64.whl (...)
-...
-Successfully installed pjrt-plugin-tt-x.x.x tt-metal-x.x.x
-```
-
-> **Troubleshooting:** If pip cannot reach the URL, check your network connection. Corporate
-> firewalls may block access to `pypi.eng.aws.tenstorrent.com`. If blocked, download the wheel
-> directly from [GitHub Releases](https://github.com/tenstorrent/tt-xla/releases) and run:
-> ```bash
-> pip install pjrt_plugin_tt-*.whl
-> ```
-
-### 5.3 Install PyTorch and torchvision
+### 5.3 Install PyTorch and torchvision (for ResNet50)
 
 ```bash
-# Install the CPU build of PyTorch (the TT card handles all compute — no GPU needed)
+# Install PyTorch (CPU build sufficient for tracing; TT device handles compute)
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+# Install torch-xla (Tenstorrent's fork is bundled inside pjrt-plugin-tt,
+# but if a standalone torch-xla is needed):
+pip install torch-xla
 ```
+
+### 5.4 Verify Installation
+
+```bash
+python3 -c "import jax; print(jax.devices('tt'))"
+# Expected for Wormhole:  [TTDevice(id=0, arch=Wormhole_b0)]
+# Expected for BOS A0:    [TTDevice(id=0, arch=blackhole)]
 
 **Why CPU wheel?** The Tenstorrent NPU is the compute target, not a GPU. Installing the CPU
 version of PyTorch saves ~1 GB of unnecessary CUDA libraries.
@@ -399,10 +372,6 @@ torch_plugin_tt loaded OK
 Use this option if you want a fully isolated environment or you do not want to modify your host
 system. Docker packages everything (OS libraries, Python, TT-XLA) into a container.
 
-> **What is Docker?** Docker is a tool that runs isolated "containers" — like a lightweight
-> virtual machine — that contain all the software needed to run an application. You do not need
-> to install Python or TT-XLA manually; it's all inside the container image.
-
 ### 6.1 Install Docker
 
 ```bash
@@ -430,18 +399,7 @@ sudo usermod -aG docker "$USER"
 newgrp docker
 ```
 
-**Verify Docker works:**
-```bash
-docker run hello-world
-```
-
-**Expected output:**
-```
-Hello from Docker!
-This message shows that your installation appears to be working correctly.
-```
-
-### 6.2 Run the TT-XLA Container
+### 6.2 Run TT-XLA Docker Container
 
 ```bash
 docker run -it --rm \
@@ -456,19 +414,6 @@ docker run -it --rm \
 - `--device /dev/tenstorrent` — gives the container access to the Tenstorrent hardware
 - `-v /dev/hugepages-1G:/dev/hugepages-1G` — shares hugepages memory with the container
 - `ghcr.io/tenstorrent/tt-xla-slim:latest` — the container image (downloaded automatically)
-
-> ⚠️ **Critical:** Always use `--device /dev/tenstorrent` (the full directory), **not**
-> `--device /dev/tenstorrent/0`. Specifying a numbered device file causes fatal errors at runtime.
-
-**Expected output on first run** (Docker downloads the image, which may take several minutes):
-```
-Unable to find image 'ghcr.io/tenstorrent/tt-xla-slim:latest' locally
-latest: Pulling from tenstorrent/tt-xla-slim
-...
-root@container:/# 
-```
-
-The `root@container:/#` prompt means you are now inside the container.
 
 ### 6.3 Inside the Container
 
@@ -487,19 +432,13 @@ python3 -c "import jax; print(jax.devices('tt'))"
 
 ---
 
-## 7. Software Installation — Option C: Build from Source (Advanced)
+## 7. Software Installation — Option C: Build from Source
 
 > ⚠️ **Use this option only if you are developing or modifying TT-XLA itself.**  
 > Building from source requires Ubuntu 24.04 and takes **30–90 minutes** depending on your
 > system. Most users should use Option A (wheel install).
 
-### 7.1 System Requirements for Source Build
-
-- Ubuntu **24.04** LTS (not 22.04 — Clang 20 is required and not available in 22.04 by default)
-- At least **50 GB of free disk space** (build artifacts are large)
-- **8+ CPU cores** recommended for reasonable build times
-
-### 7.2 Install System Dependencies
+### 7.1 System Dependencies
 
 ```bash
 sudo apt-get update
@@ -522,19 +461,7 @@ sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100
 sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100
 ```
 
-**Verify:**
-```bash
-clang --version
-```
-
-**Expected output:**
-```
-Ubuntu clang version 20.0.x
-```
-
-### 7.3 Build TT-MLIR Toolchain (Required Dependency)
-
-TT-XLA depends on **TT-MLIR**, Tenstorrent's MLIR-based compiler. You must build it first.
+### 7.2 Build TT-MLIR Toolchain (Required Dependency)
 
 ```bash
 # Clone the TT-MLIR repository
@@ -549,7 +476,7 @@ export TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain
 cd ..
 ```
 
-### 7.4 Clone and Build TT-XLA
+### 7.3 Clone and Build TT-XLA
 
 ```bash
 # Clone the TT-XLA repository
@@ -570,18 +497,15 @@ cmake -G Ninja -B build
 cmake --build build
 ```
 
-### 7.5 Verify Source Build
+### 7.4 Verify Source Build
 
 ```bash
 python3 -c "import jax; print(jax.devices('tt'))"
+# Expected for Wormhole:  [TTDevice(id=0, arch=Wormhole_b0)]
+# Expected for BOS A0:    [TTDevice(id=0, arch=blackhole)]
 ```
 
-**Expected output:**
-```
-[TTDevice(id=0, arch=Wormhole_b0)]
-```
-
-### 7.6 (Optional) Package as a Wheel
+### 7.5 (Optional) Build the Wheel
 
 ```bash
 cd python_package
@@ -591,9 +515,9 @@ pip install dist/pjrt_plugin_tt*.whl
 
 ---
 
-## 8. ResNet50 PyTorch Model — Step-by-Step
+## 8. ResNet50 PyTorch Model — Discovery and Compilation
 
-### 8.1 What Is ResNet50?
+### 8.1 Model Source
 
 ResNet50 ("Residual Network, 50 layers") is a convolutional neural network (CNN) trained to
 classify images into 1000 categories from the ImageNet dataset. It is widely used as a
@@ -626,7 +550,7 @@ Before running any Python code, activate the virtual environment:
 source ~/.tt-xla-venv/bin/activate
 ```
 
-Your prompt should show `(.tt-xla-venv)` — if not, run the command above.
+### 8.2 How TT-XLA Compiles a PyTorch Model
 
 ### 8.4 Create the ResNet50 Inference Script
 
@@ -637,7 +561,12 @@ You can use any text editor. For example, using `nano` (beginner-friendly):
 nano run_resnet50_tt.py
 ```
 
-Paste the following Python code, then press `Ctrl+X`, then `Y`, then `Enter` to save:
+> **No ONNX export, no separate conversion step is needed** for PyTorch models.
+> `torch.compile` handles all graph lowering internally.
+
+### 8.3 Create the ResNet50 Inference Script
+
+Create the file `run_resnet50_tt.py`:
 
 ```python
 #!/usr/bin/env python3
@@ -732,7 +661,7 @@ for i in range(top5_prob.size(0)):
     print(f"  {i+1}. {label:<40} {prob:.2f}%")
 ```
 
-### 8.5 Run the Script
+### 8.4 Run the Script
 
 ```bash
 # Make sure your virtual environment is active
@@ -746,10 +675,7 @@ python run_resnet50_tt.py
 
 ## 9. Running Inference
 
-### 9.1 Minimal Smoke Test (No Image Required)
-
-This quick test checks whether the TT-XLA backend works end-to-end with a random input.
-Copy this into a Python file or paste it into a Python REPL (`python3`):
+### 9.1 Minimal Smoke Test (no image required)
 
 ```python
 import torch
@@ -771,14 +697,7 @@ print("Output shape:", out.shape)
 # Expected: Output shape: torch.Size([1, 1000])
 ```
 
-**Expected output:**
-```
-Output shape: torch.Size([1, 1000])
-```
-
-### 9.2 JAX Quick Test
-
-If you prefer to test using JAX (another AI framework):
+### 9.2 JAX Quick Test (alternative)
 
 ```python
 import jax
@@ -810,11 +729,11 @@ print("JAX matmul result shape:", result.shape)
 After completing Section 5 (wheel install), you should see:
 
 ```
-$ python3 -c "import jax; print(jax.devices('tt'))"
+# Wormhole cards (n150/n300):
 [TTDevice(id=0, arch=Wormhole_b0)]
 
-$ python3 -c "import torch_plugin_tt; print('torch_plugin_tt loaded OK')"
-torch_plugin_tt loaded OK
+# BOS A0 — Blackhole cards (p100a/p150a/p150b):
+[TTDevice(id=0, arch=blackhole)]
 ```
 
 ### 10.2 Full ResNet50 Demo Run
@@ -867,15 +786,39 @@ HugePages_Total:       4
 
 ### Problem: `No TT devices found` or `jax.devices('tt')` returns `[]`
 
-**Symptoms:**
-```python
->>> import jax; jax.devices('tt')
-[]
-# or
-RuntimeError: No TT devices found
-```
+1. Verify the kernel module is loaded:
+   ```bash
+   lsmod | grep tt
+   ls /dev/tenstorrent/
+   ```
+2. Re-run the TT-Installer:
+   ```bash
+   /bin/bash -c "$(curl -fsSL https://github.com/tenstorrent/tt-installer/releases/latest/download/install.sh)"
+   sudo reboot
+   ```
+3. Check hugepages:
+   ```bash
+   grep HugePages /proc/meminfo
+   ```
 
-**Diagnosis steps:**
+### BOS A0 (Blackhole) card not detected by `lspci`
+
+1. Verify the power LED is lit and the fan is spinning (p100a/p150a only).
+2. Check the 12+4-pin 12V-2x6 power cable is fully inserted.
+3. In BIOS, confirm the PCIe slot speed is forced to Gen 5 (not "Auto").
+4. Reseat the card and retry.
+5. Use the Tenstorrent PCI vendor ID to check:
+   ```bash
+   lspci -d 1e52:
+   ```
+   If this returns nothing, the card failed to enumerate — check power and BIOS settings.
+
+### `tt-smi` shows no devices or crashes
+
+On Blackhole hardware, `tt-smi` requires the PCIe AER reporting mode to be set to "OS First" in
+BIOS. Without this, `tt-smi` may show no devices or exit unexpectedly. See [Section 3.2.1](#321-set-pcie-aer-reporting-mechanism-to-os-first).
+
+### `ImportError: cannot import name 'torch_plugin_tt'`
 
 ```bash
 # 1. Is the kernel module loaded?
@@ -1012,76 +955,31 @@ docker run -it --rm --device /dev/tenstorrent \
 
 ---
 
-### Problem: pip cannot connect to `pypi.eng.aws.tenstorrent.com`
-
-**Possible causes:**
-- Corporate VPN or firewall blocking the URL
-- Network instability
-
-**Fix — download wheel from GitHub Releases instead:**
-```bash
-# Go to: https://github.com/tenstorrent/tt-xla/releases
-# Download the .whl file for your Python version (cp311 = Python 3.11)
-# Then install locally:
-pip install pjrt_plugin_tt-x.x.x-cp311-cp311-linux_x86_64.whl
-```
-
----
-
 ## 12. Replay Checklist
 
-Use this checklist to verify a fresh installation from scratch. Tick each item before moving on.
+Use this checklist to verify a fresh install from scratch.
 
-### Hardware
-- [ ] Tenstorrent PCIe card is physically installed in the PCIe x16 slot
-- [ ] `lspci | grep -i tenstorrent` shows at least one device
-- [ ] TT-Installer has been run: `sudo /tmp/tt-installer.sh`
-- [ ] Machine has been rebooted after driver installation
-- [ ] `ls /dev/tenstorrent/` shows at least one device file (e.g., `0`)
-- [ ] `lsmod | grep tenstorrent` shows the kernel module is loaded
-- [ ] `grep HugePages_Total /proc/meminfo` shows a value ≥ 1
+### For all hardware (Wormhole and BOS A0 / Blackhole)
 
-### Software — Virtual Environment
-- [ ] Python 3.11 or 3.12 is available: `python3.11 --version`
-- [ ] Virtual environment created: `python3.11 -m venv ~/.tt-xla-venv`
-- [ ] Virtual environment activated: `source ~/.tt-xla-venv/bin/activate`
-- [ ] Prompt shows `(.tt-xla-venv)` prefix
-
-### Software — Packages
-- [ ] pip upgraded: `pip install --upgrade pip wheel setuptools`
-- [ ] TT-XLA plugin installed: `pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.com/`
-- [ ] PyTorch installed: `pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu`
-
-### Verification
-- [ ] JAX device check passes: `python3 -c "import jax; print(jax.devices('tt'))"` → shows TTDevice
-- [ ] torch_plugin_tt import succeeds: `python3 -c "import torch_plugin_tt; print('OK')"`
-
-### ResNet50 Demo
-- [ ] Script `run_resnet50_tt.py` created (copy from Section 8.4)
-- [ ] Script runs without errors: `python run_resnet50_tt.py`
+- [ ] Tenstorrent PCIe card is physically installed and detected (`lspci | grep -i tenstorrent`)
+- [ ] `ls /dev/tenstorrent/` shows at least one device file
+- [ ] Hugepages are configured (`grep HugePages_Total /proc/meminfo` ≥ 1)
+- [ ] Python 3.11 or 3.12 virtual environment created and activated
+- [ ] `pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.com/` succeeds
+- [ ] `python3 -c "import jax; print(jax.devices('tt'))"` shows a TT device
+- [ ] `pip install torch torchvision` succeeds
+- [ ] `python3 -c "import torch_plugin_tt; print('OK')"` succeeds
+- [ ] ResNet50 smoke test runs without errors: `python run_resnet50_tt.py`
 - [ ] Output shape is `torch.Size([1, 1000])`
-- [ ] Top-5 predictions are printed with percentage values
-- [ ] (Optional) JAX matmul test passes (Section 9.2)
+- [ ] (Optional) JAX matmul test passes
 
----
+### Additional checks for BOS A0 (Blackhole only)
 
-## 13. Glossary
-
-| Term | Meaning |
-|------|---------|
-| **NPU** | Neural Processing Unit — a chip designed specifically to accelerate AI/ML workloads |
-| **PCIe** | Peripheral Component Interconnect Express — the interface connecting expansion cards (like GPUs, TPUs, NPUs) to the motherboard |
-| **TT-XLA** | Tenstorrent XLA — the compiler front-end that converts PyTorch/JAX models to run on Tenstorrent hardware |
-| **PJRT** | Portable JAX Runtime — a plugin interface that lets JAX (and PyTorch-XLA) use different hardware backends |
-| **Wheel (.whl)** | A pre-compiled Python package format; faster to install than building from source |
-| **Virtual environment (venv)** | An isolated Python workspace that keeps package dependencies separate per project |
-| **FX tracing** | PyTorch's mechanism for recording model operations as a static computation graph |
-| **StableHLO** | A portable AI compiler intermediate representation; common input format for hardware compilers |
-| **TT-MLIR** | Tenstorrent's MLIR-based compiler that converts StableHLO to Tenstorrent chip instructions |
-| **TT-Metal** | Tenstorrent's low-level runtime (like CUDA for NVIDIA GPUs) |
-| **Hugepages** | Large (1 GB) memory pages reserved in the OS; required by TT-Metal for device memory management |
-| **Kernel module (kmd)** | A driver that runs inside the Linux kernel to enable communication with hardware |
-| **ResNet50** | A 50-layer residual convolutional neural network trained on ImageNet for image classification |
-| **ImageNet** | A large dataset of ~1.2 million labelled images across 1000 categories, used to train and benchmark vision models |
-| **`torch.compile`** | A PyTorch 2.0 API that JIT-compiles a model for a target backend (here: `"tt"` for Tenstorrent) |
-| **Side-effect import** | An import statement whose purpose is to run setup code, not to use the module directly |
+- [ ] ATX 3.1 certified PSU connected with 12+4-pin 12V-2x6 cable
+- [ ] Adjacent PCIe slot is empty (for airflow)
+- [ ] BIOS: PCIe AER Reporting Mechanism set to "OS First"
+- [ ] BIOS: PCIe slot speed forced to Gen 5 (not "Auto")
+- [ ] Card power LED is lit and fan spins (p100a/p150a)
+- [ ] `lspci -d 1e52:` shows a Tenstorrent device entry
+- [ ] `tt-smi` shows the Blackhole device in the Device Information pane
+- [ ] `jax.devices('tt')` returns `arch=blackhole`

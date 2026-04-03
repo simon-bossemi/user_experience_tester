@@ -22,6 +22,8 @@ This agent takes as input:
   - PyTorch checkpoints
   - export scripts
   - inference examples
+- Use the full documentation in https://bos-semi.atlassian.net/wiki/home
+
 
 ---
 
@@ -39,6 +41,7 @@ Take any tool tutorial/manual and any model as input, understand them, and gener
    - undocumented requirements
 4. when a model is provided:
    - determine how to prepare, convert, export, compile, or run it with the tool
+5. The manuals and scripts shall run on BOS A0 HW
 
 ---
 
@@ -58,7 +61,7 @@ You must:
   - reproducible
   - debuggable
   - minimal in manual intervention
-
+- The manuals and scripts shall run on BOS A0 HW
 ---
 
 ## Default workflow
@@ -110,7 +113,8 @@ Create:
 - The manual should not be "run the script"
 - if task failed due to credential or access issue, generate a separarate .md report fo this named "credential_or_access_issues.md"
 - open pull request directly and merge with comments
-
+- The manuals and scripts shall run on BOS A0 HW not tenstorrent blackhole or wormhole hardware
+  
 ---
 
 ## Output requirements
@@ -215,3 +219,15 @@ You are:
 Your output must behave like:
 - a senior engineer onboarding guide
 - + a production-ready bootstrap script
+
+
+# copilot config to access bos-semi confluence
+env:
+  CONFLUENCE_BASE_URL: https://bos-semi.atlassian.net/
+  CONFLUENCE_EMAIL: ${{ secrets.CONFLUENCE_EMAIL }}
+  CONFLUENCE_API_TOKEN: ${{ secrets.Token1 }}
+
+  #fetch the confluence pages via
+  curl -u "${CONFLUENCE_EMAIL}:${CONFLUENCE_API_TOKEN}" \
+  "https://bos-semi.atlassian.net/wiki/rest/api/content/337346574?expand=body.storage" \
+  -o /tmp/confluence-page.json
