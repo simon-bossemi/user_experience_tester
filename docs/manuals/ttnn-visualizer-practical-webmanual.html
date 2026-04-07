@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TT-NN Visualizer Practical Web Manual</title>
+  <style>
+    :root {
+      --bg: #f6f7f2;
+      --sheet: #fbfcf8;
+      --ink: #17212b;
+      --muted: #56616d;
+      --line: #d8dfd3;
+      --accent: #0f766e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Source Serif 4", Georgia, serif;
+      color: var(--ink);
+      background:
+        linear-gradient(180deg, rgba(204,251,241,0.35), rgba(246,247,242,0) 220px),
+        linear-gradient(180deg, #f6f7f2, #eef2ea);
+      line-height: 1.65;
+    }
+    main {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 36px 20px 72px;
+    }
+    .hero, .panel {
+      background: var(--sheet);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 32px;
+      box-shadow: 0 18px 45px rgba(23, 33, 43, 0.08);
+      margin-bottom: 24px;
+    }
+    h1, h2 {
+      font-family: "Palatino Linotype", Palatino, serif;
+      line-height: 1.15;
+      margin: 0 0 14px;
+    }
+    h1 { font-size: 3rem; }
+    h2 { font-size: 1.65rem; margin-top: 10px; }
+    .lede {
+      color: var(--muted);
+      font-size: 1.12rem;
+      max-width: 780px;
+    }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      margin-top: 24px;
+    }
+    .step {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px 18px;
+    }
+    .step strong {
+      color: var(--accent);
+    }
+    pre, code {
+      font-family: "DejaVu Sans Mono", Consolas, monospace;
+    }
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 16px 18px;
+      border-radius: 18px;
+      overflow: auto;
+      font-size: 0.95rem;
+    }
+    figure {
+      margin: 22px 0 0;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px;
+    }
+    img {
+      width: 100%;
+      display: block;
+      border-radius: 12px;
+    }
+    figcaption {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <h1>TT-NN Visualizer Practical Example</h1>
+      <p class="lede">Follow the BOS-style L1 workflow: generate a memory report, load it, open Operations, and inspect per-operation memory details.</p>
+      <div class="steps">
+        <div class="step"><strong>Step 1</strong><br>Generate a TT-NN memory report</div>
+        <div class="step"><strong>Step 2</strong><br>Load it from the Reports tab</div>
+        <div class="step"><strong>Step 3</strong><br>Open Operations</div>
+        <div class="step"><strong>Step 4</strong><br>Drill into Memory Details</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Generate The Report</h2>
+      <pre>export TTNN_CONFIG_OVERRIDES='{
+  "enable_fast_runtime_mode": false,
+  "enable_logging": true,
+  "enable_graph_report": false,
+  "report_name": "l1_visualizer_demo",
+  "enable_detailed_buffer_report": true,
+  "enable_detailed_tensor_report": false,
+  "enable_comparison_mode": false
+}'</pre>
+      <p>Run your TT-NN model after setting this.</p>
+      <figure>
+        <img src="assets/ttnn-visualizer/report-generation.svg" alt="Generating TT-NN Visualizer reports">
+        <figcaption>The first practical example starts with a memory report, not with the UI alone.</figcaption>
+      </figure>
+    </section>
+
+    <section class="panel">
+      <h2>Load The Data</h2>
+      <p>Use the Reports tab to load the generated folder locally, or sync it from a remote machine over SSH.</p>
+      <figure>
+        <img src="assets/ttnn-visualizer/remote-local-loading.svg" alt="Local and remote loading">
+        <figcaption>Local folder loading is the cleanest first path. Remote sync is useful for lab servers.</figcaption>
+      </figure>
+    </section>
+
+    <section class="panel">
+      <h2>Inspect L1 Memory</h2>
+      <figure>
+        <img src="assets/ttnn-visualizer/l1-walkthrough.svg" alt="L1 memory walkthrough">
+        <figcaption>Operations to Memory Details is the core L1 inspection path from the BOS guide.</figcaption>
+      </figure>
+      <p>After loading the report, open <code>Operations</code>, choose an op, and click <code>Memory Details</code>.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Add Context With Other Tabs</h2>
+      <p>Use <code>Tensors</code>, <code>Buffers</code>, and <code>Graph</code> to understand what you saw in the per-operation L1 view. Add <code>Performance</code> only if you also loaded profiler data.</p>
+    </section>
+  </main>
+</body>
+</html>

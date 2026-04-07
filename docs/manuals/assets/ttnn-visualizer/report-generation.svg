@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="860" viewBox="0 0 1400 860" role="img" aria-labelledby="title desc">
+  <title id="title">TT-NN Visualizer report generation</title>
+  <desc id="desc">A diagram showing TTNN_CONFIG_OVERRIDES and the resulting generated report folders used by the visualizer.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fffaf2"/>
+      <stop offset="100%" stop-color="#f4f1ea"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#9a3412"/>
+    </marker>
+    <style>
+      .title { font: 700 38px 'Segoe UI', Arial, sans-serif; fill: #111827; }
+      .subtitle { font: 400 20px 'Segoe UI', Arial, sans-serif; fill: #4b5563; }
+      .section { font: 700 24px 'Segoe UI', Arial, sans-serif; fill: #9a3412; }
+      .body { font: 400 18px 'Segoe UI', Arial, sans-serif; fill: #334155; }
+      .code { font: 400 17px Consolas, 'DejaVu Sans Mono', monospace; fill: #e5eefc; }
+      .mono { font: 400 17px Consolas, 'DejaVu Sans Mono', monospace; fill: #0f172a; }
+    </style>
+  </defs>
+  <rect width="1400" height="860" fill="url(#bg)"/>
+  <text x="70" y="80" class="title">Generate the data before opening TT-NN Visualizer</text>
+  <text x="70" y="118" class="subtitle">The BOS intro focuses on L1/memory analysis. The required first artifact is a TT-NN memory report directory.</text>
+
+  <rect x="70" y="190" rx="28" ry="28" width="520" height="560" fill="#fff" stroke="#d6d3d1" stroke-width="2"/>
+  <text x="100" y="245" class="section">1. Enable memory report generation</text>
+  <rect x="100" y="285" rx="18" ry="18" width="460" height="395" fill="#111827"/>
+  <text x="122" y="325" class="code">export TTNN_CONFIG_OVERRIDES='{'</text>
+  <text x="122" y="358" class="code">  "enable_fast_runtime_mode": false,</text>
+  <text x="122" y="391" class="code">  "enable_logging": true,</text>
+  <text x="122" y="424" class="code">  "report_name": "your_report_name",</text>
+  <text x="122" y="457" class="code">  "enable_graph_report": false,</text>
+  <text x="122" y="490" class="code">  "enable_detailed_buffer_report": true,</text>
+  <text x="122" y="523" class="code">  "enable_detailed_tensor_report": false,</text>
+  <text x="122" y="556" class="code">  "enable_comparison_mode": false</text>
+  <text x="122" y="589" class="code">}'</text>
+  <text x="100" y="720" class="body">Run your TT-NN workload after setting this.</text>
+
+  <rect x="690" y="190" rx="28" ry="28" width="650" height="560" fill="#fff" stroke="#d6d3d1" stroke-width="2"/>
+  <text x="720" y="245" class="section">2. Resulting folders</text>
+  <text x="720" y="285" class="body">Memory report output:</text>
+  <rect x="720" y="315" rx="18" ry="18" width="590" height="155" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="744" y="355" class="mono">${TT_METAL_HOME}/generated/ttnn/reports/</text>
+  <text x="744" y="388" class="mono">  &lt;report-id-or-name&gt;/</text>
+  <text x="744" y="421" class="mono">    db.sqlite</text>
+  <text x="744" y="454" class="mono">    config.json   (optional but useful)</text>
+
+  <text x="720" y="535" class="body">Optional performance report output:</text>
+  <rect x="720" y="565" rx="18" ry="18" width="590" height="145" fill="#ecfeff" stroke="#99f6e4"/>
+  <text x="744" y="605" class="mono">${TT_METAL_HOME}/generated/profiler/reports/</text>
+  <text x="744" y="638" class="mono">  &lt;timestamp&gt;/</text>
+  <text x="744" y="671" class="mono">    profile_log_device.csv</text>
+  <text x="744" y="704" class="mono">    ops_perf_results_*.csv</text>
+
+  <line x1="590" y1="470" x2="690" y2="470" stroke="#9a3412" stroke-width="8" marker-end="url(#arrow)"/>
+</svg>

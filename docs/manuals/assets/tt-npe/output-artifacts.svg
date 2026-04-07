@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="860" viewBox="0 0 1400 860" role="img" aria-labelledby="title desc">
+  <title id="title">TT-NPE outputs</title>
+  <desc id="desc">A diagram showing TT-NPE terminal stats output, optional timeline JSON, and visualization JSON outputs.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fffaf2"/>
+      <stop offset="100%" stop-color="#f4f1ea"/>
+    </linearGradient>
+    <style>
+      .title { font: 700 38px 'Segoe UI', Arial, sans-serif; fill: #111827; }
+      .subtitle { font: 400 20px 'Segoe UI', Arial, sans-serif; fill: #4b5563; }
+      .section { font: 700 24px 'Segoe UI', Arial, sans-serif; fill: #9a3412; }
+      .body { font: 400 18px 'Segoe UI', Arial, sans-serif; fill: #334155; }
+      .code { font: 400 18px Consolas, 'DejaVu Sans Mono', monospace; fill: #e5eefc; }
+      .mono { font: 400 18px Consolas, 'DejaVu Sans Mono', monospace; fill: #0f172a; }
+    </style>
+  </defs>
+  <rect width="1400" height="860" fill="url(#bg)"/>
+  <text x="70" y="80" class="title">TT-NPE: what output do you get back?</text>
+  <text x="70" y="118" class="subtitle">You usually get terminal stats first. Add timeline export for deeper inspection, or analyze raw trace directories to generate visualizer JSON.</text>
+  <rect x="70" y="170" rx="28" ry="28" width="560" height="590" fill="#fff" stroke="#d6d3d1" stroke-width="2"/>
+  <text x="100" y="220" class="section">1. Terminal stats</text>
+  <text x="100" y="255" class="body">Always the first thing to check.</text>
+  <rect x="100" y="290" rx="18" ry="18" width="500" height="420" fill="#111827"/>
+  <text x="122" y="330" class="code">Loaded workload successfully, starting tt-npe ...</text>
+  <text x="122" y="370" class="code">tt-npe simulation finished successfully</text>
+  <text x="122" y="418" class="code">estimated cycles: 437</text>
+  <text x="122" y="448" class="code">golden cycles:    450</text>
+  <text x="122" y="478" class="code">cycle pred error: -2.9%</text>
+  <text x="122" y="526" class="code">DRAM BW Util: 0.6%</text>
+  <text x="122" y="556" class="code">avg Link util: 4.1%</text>
+  <text x="122" y="586" class="code">max Link util: 6.2%</text>
+  <text x="122" y="634" class="code">wallclock time: 102 us</text>
+  <rect x="680" y="170" rx="28" ry="28" width="650" height="270" fill="#fff" stroke="#d6d3d1" stroke-width="2"/>
+  <text x="710" y="220" class="section">2. Optional timeline JSON</text>
+  <text x="710" y="255" class="body">Run with <tspan font-family="Consolas, monospace">-e</tspan> to dump a detailed simulation timeline.</text>
+  <rect x="710" y="290" rx="18" ry="18" width="590" height="110" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="735" y="330" class="mono">tt_npe.py -w tt_npe/workload/example_wl.json -e</text>
+  <text x="735" y="365" class="mono">produces: npe_timeline.json</text>
+  <rect x="680" y="490" rx="28" ry="28" width="650" height="270" fill="#fff" stroke="#d6d3d1" stroke-width="2"/>
+  <text x="710" y="540" class="section">3. Visualization-ready JSON</text>
+  <text x="710" y="575" class="body">When you analyze a raw NoC trace directory, TT-NPE writes timeline JSON files for the visualizer.</text>
+  <rect x="710" y="610" rx="18" ry="18" width="590" height="110" fill="#ecfeff" stroke="#99f6e4"/>
+  <text x="735" y="650" class="mono">npe_analyze_noc_trace_dir.py output_dir/.logs/ -e</text>
+  <text x="735" y="685" class="mono">writes: output_dir/npe_viz/</text>
+</svg>

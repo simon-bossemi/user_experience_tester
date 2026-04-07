@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="740" viewBox="0 0 1400 740">
+<rect width="100%" height="100%" fill="#0b1220" rx="16" ry="16"/>
+<rect x="0" y="0" width="100%" height="38" fill="#111a2d" rx="16" ry="16"/>
+<text x="24" y="25" fill="#93c5fd" font-family="DejaVu Sans Mono, monospace" font-size="16">terminal capture</text>
+<text x="24" y="64" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">Creating workload programmatically ... </text>
+<text x="24" y="92" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">Starting tt-npe ... </text>
+<text x="24" y="120" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">tt-npe simulation finished successfully in 58 us!</text>
+<text x="24" y="148" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">--- stats ----------------------------------</text>
+<text x="24" y="176" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">  congestion impact:  14.6%</text>
+<text x="24" y="204" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">   estimated cycles:   854</text>
+<text x="24" y="232" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">      golden cycles:    32</text>
+<text x="24" y="260" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">   cycle pred error: 2568.8%</text>
+<text x="24" y="288" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve"></text>
+<text x="24" y="316" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">       DRAM BW Util: 316.4% (using golden)</text>
+<text x="24" y="344" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">       DRAM BW Util:  11.9% (using estimated)</text>
+<text x="24" y="372" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">        ETH BW Util:   0.0%</text>
+<text x="24" y="400" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve"></text>
+<text x="24" y="428" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">      avg Link util:   1.7%</text>
+<text x="24" y="456" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve"> avg Mcast link util:   0.0%</text>
+<text x="24" y="484" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">      max Link util:   2.7%</text>
+<text x="24" y="512" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve"></text>
+<text x="24" y="540" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">    avg Link demand:   1.7%</text>
+<text x="24" y="568" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">    max Link demand:   2.7%</text>
+<text x="24" y="596" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve"></text>
+<text x="24" y="624" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">    avg NIU  demand:   0.7%</text>
+<text x="24" y="652" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">    max NIU  demand:   1.2%</text>
+<text x="24" y="680" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve"></text>
+<text x="24" y="708" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">   wallclock time:    58 us</text>
+<text x="24" y="736" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve"></text>
+</svg>

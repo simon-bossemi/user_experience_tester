@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TT-NPE Installation Manual</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --paper: #fffaf2;
+      --ink: #1f2937;
+      --muted: #5b6472;
+      --line: #d7cfc0;
+      --accent: #9a3412;
+      --accent-soft: #fed7aa;
+      --note: #fff7ed;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, #fff7ed 0, #f4f1ea 42%),
+        linear-gradient(180deg, #f4f1ea, #efe7d9);
+      line-height: 1.65;
+    }
+    main {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 36px 20px 72px;
+    }
+    .hero {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 32px;
+      box-shadow: 0 18px 45px rgba(31, 41, 55, 0.08);
+    }
+    h1, h2, h3 {
+      font-family: "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      line-height: 1.15;
+      margin: 0 0 14px;
+    }
+    h1 { font-size: 3rem; }
+    h2 { font-size: 1.7rem; margin-top: 34px; }
+    h3 { font-size: 1.15rem; margin-top: 24px; }
+    .lede {
+      color: var(--muted);
+      font-size: 1.14rem;
+      max-width: 820px;
+    }
+    .meta, .grid {
+      display: grid;
+      gap: 14px;
+      margin-top: 24px;
+    }
+    .meta {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .grid {
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    }
+    .card, .callout {
+      background: rgba(255, 255, 255, 0.74);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 18px 20px;
+    }
+    .callout {
+      background: var(--note);
+    }
+    pre, code {
+      font-family: "DejaVu Sans Mono", Consolas, monospace;
+    }
+    pre {
+      background: #111827;
+      color: #e5eefc;
+      border-radius: 18px;
+      padding: 16px 18px;
+      overflow: auto;
+      font-size: 0.95rem;
+    }
+    figure {
+      margin: 22px 0;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 14px;
+    }
+    img {
+      width: 100%;
+      border-radius: 14px;
+      display: block;
+    }
+    figcaption {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-top: 10px;
+    }
+    ul {
+      padding-left: 20px;
+    }
+    .small {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    a {
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <p class="small">TT-NPE install guide • based on upstream quick start and Linux tester output from 2026-04-06</p>
+      <h1>TT-NPE Installation Manual</h1>
+      <p class="lede">
+        This guide covers the clean install path for <code>tt-npe</code> without assuming you already have
+        TT-XLA installed. The goal is simple: clone the repo, build it, set up the shell environment if you want,
+        and verify the install with the bundled example workload.
+      </p>
+      <div class="meta">
+        <div class="card"><strong>Upstream repo</strong><br><a href="https://github.com/tenstorrent/tt-npe">tenstorrent/tt-npe</a></div>
+        <div class="card"><strong>Validated commit</strong><br><code>09d56e9bd91408d449042315d61f91a59c6cbbca</code></div>
+        <div class="card"><strong>Requires TT-XLA first?</strong><br>No</div>
+        <div class="card"><strong>First success check</strong><br>Run the bundled workload JSON</div>
+      </div>
+    </section>
+
+    <h2>Quick Overview</h2>
+    <div class="grid">
+      <div class="card"><strong>Step 1</strong><br>Clone <code>tt-npe</code></div>
+      <div class="card"><strong>Step 2</strong><br>Run <code>./build-npe.sh</code></div>
+      <div class="card"><strong>Step 3</strong><br>Optionally <code>source ENV_SETUP</code></div>
+      <div class="card"><strong>Step 4</strong><br>Verify with <code>example_wl.json</code></div>
+    </div>
+
+    <h2>Prerequisites</h2>
+    <p>The validated tester run had these base tools available:</p>
+    <pre>git
+cmake
+ninja
+clang-17
+python3</pre>
+    <div class="callout">
+      You do not need TT-XLA, a ResNet50 environment, or live hardware tracing just to install and smoke-test
+      <code>tt-npe</code>.
+    </div>
+
+    <h2>Clone The Repository</h2>
+    <pre>git clone https://github.com/tenstorrent/tt-npe.git
+cd tt-npe</pre>
+    <p>If you use SSH with GitHub, cloning via <code>git@github.com:tenstorrent/tt-npe.git</code> is equally fine.</p>
+
+    <h2>Build TT-NPE</h2>
+    <pre>./build-npe.sh</pre>
+    <p>A successful build creates the <code>install/</code> tree, including <code>tt_npe.py</code>,
+      <code>programmatic_workload_generation.py</code>, and the shared libraries under <code>install/lib/</code>.</p>
+
+    <h2>Optional Environment Setup</h2>
+    <pre>source ENV_SETUP</pre>
+    <p>
+      The shell helper is useful because it prepares the runtime environment and makes the CLI easier to launch.
+      On the validated tester host, it emitted a non-fatal warning about optional package installation but still
+      pointed to a working Python binary.
+    </p>
+    <figure>
+      <img src="assets/tt-npe/env_setup_output.svg" alt="ENV_SETUP terminal output">
+      <figcaption>Warnings here were not treated as installation failure on the validated host.</figcaption>
+    </figure>
+
+    <h2>Verify The Install</h2>
+    <pre>source ENV_SETUP
+tt_npe.py -w tt_npe/workload/example_wl.json</pre>
+    <p>You can also run the CLI more explicitly:</p>
+    <pre>python3 install/bin/tt_npe.py -w tt_npe/workload/example_wl.json</pre>
+    <p>Success means the workload loads, the simulation completes, and cycle and bandwidth statistics are printed.</p>
+    <figure>
+      <img src="assets/tt-npe/example_run.svg" alt="Bundled workload verification run">
+      <figcaption>The stock workload is the fastest proof that the install is healthy.</figcaption>
+    </figure>
+
+    <h2>What This Install Path Does Not Assume</h2>
+    <ul>
+      <li>No TT-XLA checkout is required.</li>
+      <li>No TT-XLA wheel install is required.</li>
+      <li>No ResNet50 demo stack is required.</li>
+      <li>No live device profiling is required.</li>
+    </ul>
+
+    <h2>Common Pitfalls</h2>
+    <div class="grid">
+      <div class="card"><strong>Build fails early</strong><br>Check the compiler toolchain, Python availability, and dependency downloads.</div>
+      <div class="card"><strong><code>ENV_SETUP</code> warns</strong><br>Try the explicit Python invocation before treating the install as failed.</div>
+      <div class="card"><strong>Expecting TT-XLA artifacts</strong><br><code>tt-npe</code> can run directly from its own workload JSON files.</div>
+    </div>
+
+    <h2>Minimal Successful Command Set</h2>
+    <pre>git clone https://github.com/tenstorrent/tt-npe.git
+cd tt-npe
+./build-npe.sh
+source ENV_SETUP
+tt_npe.py -w tt_npe/workload/example_wl.json</pre>
+  </main>
+</body>
+</html>

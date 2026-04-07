@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TT-NPE Practical Web Manual</title>
+  <style>
+    :root {
+      --bg: #f6f7f2;
+      --sheet: #fbfcf8;
+      --ink: #17212b;
+      --muted: #56616d;
+      --line: #d8dfd3;
+      --accent: #0f766e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Source Serif 4", Georgia, serif;
+      color: var(--ink);
+      background:
+        linear-gradient(180deg, rgba(204,251,241,0.35), rgba(246,247,242,0) 220px),
+        linear-gradient(180deg, #f6f7f2, #eef2ea);
+      line-height: 1.65;
+    }
+    main {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 36px 20px 72px;
+    }
+    .hero, .panel {
+      background: var(--sheet);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 32px;
+      box-shadow: 0 18px 45px rgba(23, 33, 43, 0.08);
+      margin-bottom: 24px;
+    }
+    h1, h2 {
+      font-family: "Palatino Linotype", Palatino, serif;
+      line-height: 1.15;
+      margin: 0 0 14px;
+    }
+    h1 { font-size: 3rem; }
+    h2 { font-size: 1.65rem; margin-top: 10px; }
+    .lede {
+      color: var(--muted);
+      font-size: 1.12rem;
+      max-width: 780px;
+    }
+    .steps, .grid {
+      display: grid;
+      gap: 14px;
+      margin-top: 24px;
+    }
+    .steps {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .grid {
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    }
+    .step, .card, .note {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px 18px;
+    }
+    .step strong, .card strong {
+      color: var(--accent);
+    }
+    .note {
+      background: #f0fdfa;
+    }
+    pre, code {
+      font-family: "DejaVu Sans Mono", Consolas, monospace;
+    }
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 16px 18px;
+      border-radius: 18px;
+      overflow: auto;
+      font-size: 0.95rem;
+    }
+    figure {
+      margin: 22px 0 0;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px;
+    }
+    img {
+      width: 100%;
+      display: block;
+      border-radius: 12px;
+    }
+    figcaption {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-top: 10px;
+    }
+    .small {
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <p class="small">TT-NPE practical guide based on upstream examples and Linux tester output from 2026-04-06</p>
+      <h1>TT-NPE Practical Example Manual</h1>
+      <p class="lede">
+        Learn the real workflow: what input to give <code>tt-npe</code>, what output files come back, and which
+        files are used when you want to visualize NoC activity.
+      </p>
+      <div class="steps">
+        <div class="step"><strong>Input 1</strong><br>Workload JSON</div>
+        <div class="step"><strong>Input 2</strong><br>Python-generated workload</div>
+        <div class="step"><strong>Input 3</strong><br>Raw NoC trace directory</div>
+        <div class="step"><strong>Goal</strong><br>Understand outputs and visualization</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Input Types</h2>
+      <figure>
+        <img src="assets/tt-npe/input-types.svg" alt="TT-NPE input types">
+        <figcaption>These are the three clean ways to feed TT-NPE.</figcaption>
+      </figure>
+      <div class="grid">
+        <div class="card"><strong>Workload JSON</strong><br>Use <code>tt_npe.py -w path/to/workload.json</code> for the fastest path.</div>
+        <div class="card"><strong>Python-generated workload</strong><br>Use the Python bindings when you want scripted workload generation.</div>
+        <div class="card"><strong>Raw NoC trace directory</strong><br>Use <code>npe_analyze_noc_trace_dir.py ... -e</code> to generate visualization-ready JSON.</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Raw NoC Trace Format Notes</h2>
+      <p>
+        The upstream <code>noc_trace_format.md</code> document describes the raw trace JSON family that
+        <code>tt-npe</code> consumes when the input comes from captured device traces rather than a synthetic
+        workload JSON.
+      </p>
+      <div class="grid">
+        <div class="card"><strong>Raw trace input</strong><br>Profiler capture stores raw NoC trace JSON under folders such as <code>output_dir/.logs/</code>.</div>
+        <div class="card"><strong>Not visualizer JSON yet</strong><br>Those files are capture artifacts, not the final JSON consumed by the visualizer.</div>
+        <div class="card"><strong>Conversion step</strong><br><code>tt-npe</code> analyzes the raw trace directory and emits NPE-oriented timeline JSON.</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Output Types</h2>
+      <figure>
+        <img src="assets/tt-npe/output-artifacts.svg" alt="TT-NPE output artifacts">
+        <figcaption>Terminal stats are only the first layer. Use timeline export when you want deeper inspection or visualization handoff files.</figcaption>
+      </figure>
+    </section>
+
+    <section class="panel">
+      <h2>Example 1: Bundled Workload JSON</h2>
+      <pre>tt_npe.py -w tt_npe/workload/example_wl.json</pre>
+      <p>If you want the explicit form instead of relying on <code>ENV_SETUP</code>:</p>
+      <pre>python3 install/bin/tt_npe.py -w tt_npe/workload/example_wl.json</pre>
+      <figure>
+        <img src="assets/tt-npe/example_run.svg" alt="Bundled workload example">
+        <figcaption>The quickest proof that TT-NPE is running correctly.</figcaption>
+      </figure>
+    </section>
+
+    <section class="panel">
+      <h2>Example 2: Programmatic Python Workload</h2>
+      <pre>export PYTHONPATH=$PWD/install/lib:$PWD/install/bin
+python3 install/bin/programmatic_workload_generation.py</pre>
+      <figure>
+        <img src="assets/tt-npe/programmatic_run.svg" alt="Programmatic Python example">
+        <figcaption>The installed Python bindings build a workload in code and then simulate it.</figcaption>
+      </figure>
+    </section>
+
+    <section class="panel">
+      <h2>Example 3: Export A Timeline File</h2>
+      <pre>tt_npe.py -w tt_npe/workload/example_wl.json -e</pre>
+      <p>This keeps the same input but adds a detailed timeline export. The default file is <code>npe_timeline.json</code>.</p>
+    </section>
+
+    <section class="panel">
+      <h2>How To Visualize NoC Activity</h2>
+      <div class="note">
+        There are two clean levels here: direct timeline inspection for a workload simulation, and visualizer-ready
+        JSON generation from a raw NoC trace directory.
+      </div>
+      <figure>
+        <img src="assets/tt-npe/visualization-flow.svg" alt="TT-NPE visualization flow">
+        <figcaption>The visualization-ready handoff files are written under <code>output_dir/npe_viz/</code>.</figcaption>
+      </figure>
+      <pre>npe_analyze_noc_trace_dir.py output_dir/.logs/ -e</pre>
+      <p>
+        <code>ttnn-visualizer</code> can display TT-NPE data, but the supported path is the NPE-ready output:
+        load NPE data on the <code>/npe</code> route or open a profiler/performance report folder that contains
+        the generated <code>npe_viz</code> subdirectory. Raw <code>.logs/</code> trace files are the capture
+        input, not the final visualizer-ready payload.
+      </p>
+    </section>
+  </main>
+</body>
+</html>
