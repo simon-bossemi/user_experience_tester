@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="220" viewBox="0 0 1400 220">
+<rect width="100%" height="100%" fill="#0b1220" rx="16" ry="16"/>
+<rect x="0" y="0" width="100%" height="38" fill="#111a2d" rx="16" ry="16"/>
+<text x="24" y="25" fill="#93c5fd" font-family="DejaVu Sans Mono, monospace" font-size="16">terminal capture</text>
+<text x="24" y="64" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">tt-npe root dir inferred to be &#x27;/home/bos/simon/tt-npe&#x27;</text>
+<text x="24" y="92" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">tt-npe is up to date with remote</text>
+<text x="24" y="120" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">tt-npe was built against Python: /home/linuxbrew/.linuxbrew/bin/python3</text>
+<text x="24" y="148" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">Checking python requirements, installing if necessary ... </text>
+<text x="24" y="176" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">[0;35m[1mW: pip could not auto-install optional requirements; a virtualenv is safer on this host[0m</text>
+<text x="24" y="204" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">Run tt-npe commands with: /home/linuxbrew/.linuxbrew/bin/python3 /home/bos/simon/tt-npe/install/bin/tt_npe.py ...</text>
+</svg>

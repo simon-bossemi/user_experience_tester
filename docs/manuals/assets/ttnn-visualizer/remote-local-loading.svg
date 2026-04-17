@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="860" viewBox="0 0 1400 860" role="img" aria-labelledby="title desc">
+  <title id="title">Local and remote loading in TT-NN Visualizer</title>
+  <desc id="desc">A diagram comparing local folder loading and remote SSH sync in TT-NN Visualizer.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#eef7ff"/>
+    </linearGradient>
+    <style>
+      .title { font: 700 38px 'Segoe UI', Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 400 20px 'Segoe UI', Arial, sans-serif; fill: #475569; }
+      .card-title { font: 700 24px 'Segoe UI', Arial, sans-serif; fill: #1d4ed8; }
+      .body { font: 400 18px 'Segoe UI', Arial, sans-serif; fill: #334155; }
+      .mono { font: 400 17px Consolas, 'DejaVu Sans Mono', monospace; fill: #0f172a; }
+    </style>
+  </defs>
+  <rect width="1400" height="860" fill="url(#bg)"/>
+  <text x="70" y="80" class="title">How to load TT-NN Visualizer data</text>
+  <text x="70" y="118" class="subtitle">Use local folder loading for the simplest path. Use SSH sync when the reports stay on a remote Tenstorrent machine.</text>
+
+  <rect x="70" y="190" rx="28" ry="28" width="580" height="560" fill="#fff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="100" y="245" class="card-title">Local loading</text>
+  <text x="100" y="290" class="body">1. Generate reports on the target machine.</text>
+  <text x="100" y="325" class="body">2. Copy the report folders locally if needed.</text>
+  <text x="100" y="360" class="body">3. In the Reports tab, select the folder that</text>
+  <text x="100" y="388" class="body">contains the relevant files.</text>
+  <text x="100" y="440" class="mono">Memory: generated/ttnn/reports/&lt;id&gt;/</text>
+  <text x="100" y="475" class="mono">Performance: generated/profiler/reports/&lt;ts&gt;/</text>
+  <text x="100" y="530" class="body">Best when you want the simplest and most</text>
+  <text x="100" y="558" class="body">predictable workflow.</text>
+  <text x="100" y="613" class="body">NPE data is local-only in the current docs.</text>
+
+  <rect x="750" y="190" rx="28" ry="28" width="580" height="560" fill="#fff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="780" y="245" class="card-title">Remote SSH sync</text>
+  <text x="780" y="290" class="body">1. Open Reports tab.</text>
+  <text x="780" y="325" class="body">2. Add a new SSH connection.</text>
+  <text x="780" y="360" class="body">3. Configure remote report paths.</text>
+  <text x="780" y="395" class="body">4. Fetch the folder list, then sync the report</text>
+  <text x="780" y="423" class="body">you want to inspect.</text>
+  <text x="780" y="475" class="body">SSH keys only. If the key is passphrase-</text>
+  <text x="780" y="503" class="body">protected, add it with</text>
+  <text x="780" y="538" class="mono">ssh-add /path/to/private_key</text>
+  <text x="780" y="595" class="body">Best when the reports stay on a remote lab</text>
+  <text x="780" y="623" class="body">or accelerator machine.</text>
+</svg>

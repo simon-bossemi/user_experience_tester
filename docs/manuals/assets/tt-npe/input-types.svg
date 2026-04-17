@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="860" viewBox="0 0 1400 860" role="img" aria-labelledby="title desc">
+  <title id="title">TT-NPE input types</title>
+  <desc id="desc">A diagram showing the main TT-NPE input types: workload JSON, Python-generated workload, and raw NoC trace directory.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f7faf7"/>
+      <stop offset="100%" stop-color="#eaf4ef"/>
+    </linearGradient>
+    <style>
+      .title { font: 700 38px 'Segoe UI', Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 400 20px 'Segoe UI', Arial, sans-serif; fill: #475569; }
+      .card-title { font: 700 24px 'Segoe UI', Arial, sans-serif; fill: #0f766e; }
+      .body { font: 400 18px 'Segoe UI', Arial, sans-serif; fill: #334155; }
+      .code { font: 400 18px Consolas, 'DejaVu Sans Mono', monospace; fill: #dbeafe; }
+      .label { font: 600 17px 'Segoe UI', Arial, sans-serif; fill: #0f172a; }
+    </style>
+  </defs>
+  <rect width="1400" height="860" fill="url(#bg)"/>
+  <text x="70" y="80" class="title">TT-NPE: what input can you give it?</text>
+  <text x="70" y="118" class="subtitle">Start with a workload JSON. Move to Python-generated workloads next. Use raw NoC traces for trace analysis and visualization.</text>
+  <rect x="70" y="170" rx="28" ry="28" width="390" height="560" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="100" y="220" class="card-title">1. Workload JSON</text>
+  <text x="100" y="255" class="body">Best first input for a new user.</text>
+  <text x="100" y="295" class="label">Required</text>
+  <text x="100" y="325" class="body">A JSON file passed with</text>
+  <text x="100" y="352" class="body">the required <tspan font-family="Consolas, monospace">-w</tspan> argument.</text>
+  <rect x="100" y="390" rx="18" ry="18" width="330" height="250" fill="#0f172a"/>
+  <text x="122" y="430" class="code">tt_npe.py -w</text>
+  <text x="122" y="460" class="code">tt_npe/workload/example_wl.json</text>
+  <text x="122" y="515" class="code">{</text>
+  <text x="152" y="545" class="code">"phases": [ ... ],</text>
+  <text x="152" y="575" class="code">"transfers": [ ... ]</text>
+  <text x="122" y="605" class="code">}</text>
+  <text x="100" y="680" class="body">Use this when you want a fast smoke test</text>
+  <text x="100" y="707" class="body">or when another tool already exported a</text>
+  <text x="100" y="734" class="body">simplified workload file.</text>
+  <rect x="505" y="170" rx="28" ry="28" width="390" height="560" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="535" y="220" class="card-title">2. Python-generated workload</text>
+  <text x="535" y="255" class="body">Best for automation and custom tests.</text>
+  <text x="535" y="295" class="label">Required</text>
+  <text x="535" y="325" class="body">A Python script using the installed</text>
+  <text x="535" y="352" class="body">TT-NPE bindings.</text>
+  <rect x="535" y="390" rx="18" ry="18" width="330" height="250" fill="#0f172a"/>
+  <text x="557" y="430" class="code">export PYTHONPATH=$PWD/install/lib:</text>
+  <text x="557" y="458" class="code">$PWD/install/bin</text>
+  <text x="557" y="505" class="code">python3 install/bin/</text>
+  <text x="557" y="533" class="code">programmatic_workload_generation.py</text>
+  <text x="557" y="588" class="code"># build transfers</text>
+  <text x="557" y="616" class="code"># build phases</text>
+  <text x="557" y="644" class="code"># run tt-npe</text>
+  <text x="535" y="680" class="body">Use this when the bundled JSON is working</text>
+  <text x="535" y="707" class="body">and you want to synthesize workloads</text>
+  <text x="535" y="734" class="body">instead of hand-writing JSON.</text>
+  <rect x="940" y="170" rx="28" ry="28" width="390" height="560" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="970" y="220" class="card-title">3. Raw NoC trace directory</text>
+  <text x="970" y="255" class="body">Best for analysis and visualization.</text>
+  <text x="970" y="295" class="label">Required</text>
+  <text x="970" y="325" class="body">A profiler output directory containing</text>
+  <text x="970" y="352" class="body">raw trace files under <tspan font-family="Consolas, monospace">.logs/</tspan>.</text>
+  <rect x="970" y="390" rx="18" ry="18" width="330" height="250" fill="#0f172a"/>
+  <text x="992" y="430" class="code">profile_this.py --collect-noc-traces</text>
+  <text x="992" y="458" class="code">-c 'pytest command/to/trace.py'</text>
+  <text x="992" y="486" class="code">-o output_dir</text>
+  <text x="992" y="540" class="code">npe_analyze_noc_trace_dir.py</text>
+  <text x="992" y="568" class="code">output_dir/.logs/ -e</text>
+  <text x="992" y="622" class="code">output_dir/npe_viz/</text>
+  <text x="992" y="650" class="code">timeline JSON files</text>
+  <text x="970" y="680" class="body">Use this when you want visualization-ready</text>
+  <text x="970" y="707" class="body">JSON generated from real captured NoC</text>
+  <text x="970" y="734" class="body">events.</text>
+</svg>

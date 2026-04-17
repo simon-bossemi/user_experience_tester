@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TT-NPE Practical Example Manual</title>
+  <style>
+    :root {
+      --bg: #f6f7f2;
+      --sheet: #fbfcf8;
+      --ink: #17212b;
+      --muted: #56616d;
+      --line: #d8dfd3;
+      --accent: #0f766e;
+      --accent-soft: #ccfbf1;
+      --warning: #fff7ed;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Source Serif 4", Georgia, serif;
+      color: var(--ink);
+      background:
+        linear-gradient(180deg, rgba(204,251,241,0.35), rgba(246,247,242,0) 220px),
+        linear-gradient(180deg, #f6f7f2, #eef2ea);
+      line-height: 1.65;
+    }
+    main {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 36px 20px 72px;
+    }
+    .hero {
+      background: var(--sheet);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 32px;
+      box-shadow: 0 18px 45px rgba(23, 33, 43, 0.08);
+    }
+    h1, h2, h3 {
+      font-family: "Palatino Linotype", Palatino, serif;
+      line-height: 1.15;
+      margin: 0 0 14px;
+    }
+    h1 { font-size: 3rem; }
+    h2 { font-size: 1.65rem; margin-top: 34px; }
+    h3 { font-size: 1.15rem; margin-top: 24px; }
+    .lede {
+      color: var(--muted);
+      font-size: 1.12rem;
+      max-width: 780px;
+    }
+    .steps, .grid {
+      display: grid;
+      gap: 14px;
+      margin-top: 24px;
+    }
+    .steps {
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .grid {
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    }
+    .step, .card, .note, .warning {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px 18px;
+    }
+    .step strong, .card strong {
+      color: var(--accent);
+    }
+    .note {
+      background: #f0fdfa;
+    }
+    .warning {
+      background: var(--warning);
+    }
+    pre, code {
+      font-family: "DejaVu Sans Mono", Consolas, monospace;
+    }
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 16px 18px;
+      border-radius: 18px;
+      overflow: auto;
+      font-size: 0.95rem;
+    }
+    figure {
+      margin: 22px 0;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 14px;
+    }
+    img {
+      width: 100%;
+      display: block;
+      border-radius: 12px;
+    }
+    figcaption {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-top: 10px;
+    }
+    ul {
+      padding-left: 20px;
+    }
+    .small {
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+    a {
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <p class="small">TT-NPE practical guide • based on upstream examples and Linux tester output from 2026-04-06</p>
+      <h1>TT-NPE Practical Example Manual</h1>
+      <p class="lede">
+        This guide starts with the examples that work with <code>tt-npe</code> alone, then shows an optional
+        larger ResNet50-context run from the validated tester environment. It does not assume TT-XLA is already
+        installed before you learn or use <code>tt-npe</code>.
+      </p>
+      <div class="steps">
+        <div class="step"><strong>Example 1</strong><br>Bundled workload JSON</div>
+        <div class="step"><strong>Example 2</strong><br>Programmatic Python workload</div>
+        <div class="step"><strong>Example 3</strong><br>Optional ResNet50-context workload</div>
+        <div class="step"><strong>Focus</strong><br>Standalone NPE use before cross-tool workflows</div>
+      </div>
+    </section>
+
+    <h2>Start With The Bundled Workload</h2>
+    <pre>tt_npe.py -w tt_npe/workload/example_wl.json</pre>
+    <p>If you want the fully explicit version instead of relying on <code>ENV_SETUP</code>:</p>
+    <pre>python3 install/bin/tt_npe.py -w tt_npe/workload/example_wl.json</pre>
+    <p>Success means the workload loads, simulation finishes, and stats are printed.</p>
+    <figure>
+      <img src="assets/tt-npe/example_run.svg" alt="Bundled workload example">
+      <figcaption>This is the most beginner-friendly practical example because it needs only tt-npe itself.</figcaption>
+    </figure>
+
+    <h2>Run The Programmatic Python Example</h2>
+    <pre>export PYTHONPATH=$PWD/install/lib:$PWD/install/bin
+python3 install/bin/programmatic_workload_generation.py</pre>
+    <p>This demonstrates the Python bindings and is the best bridge toward generating your own workloads in code.</p>
+    <figure>
+      <img src="assets/tt-npe/programmatic_run.svg" alt="Programmatic Python example">
+      <figcaption>The workload is generated in Python and then simulated through the installed bindings.</figcaption>
+    </figure>
+
+    <h2>Optional ResNet50 Context Example</h2>
+    <div class="note">
+      This example came from the validated Linux tester environment and is useful as a pattern for bigger workloads,
+      but it is not a required starting point and it is not proof that TT-XLA must be installed first.
+    </div>
+    <p>
+      In that environment, a ResNet50-context workload JSON was created to reflect an earlier model project. The key
+      detail is that <code>tt-npe</code> still consumed a workload JSON, not TT-XLA compiler artifacts directly.
+    </p>
+    <pre>./local/run_resnet50_tt_xla_context.sh ./local/output</pre>
+    <p>A successful run produced a timeline JSON file under <code>./local/output</code>.</p>
+    <figure>
+      <img src="assets/tt-npe/resnet50_context_run.svg" alt="ResNet50-context workload example">
+      <figcaption>The optional context example is a larger workload, not a TT-XLA prerequisite.</figcaption>
+    </figure>
+
+    <h2>What TT-NPE Is Best At Consuming</h2>
+    <div class="grid">
+      <div class="card"><strong>Bundled or custom JSON</strong><br>The simplest way to learn the tool.</div>
+      <div class="card"><strong>Python-generated workloads</strong><br>The right next step when you want automation or synthesis.</div>
+      <div class="card"><strong>NoC traces</strong><br>Best used after the standalone path is already working.</div>
+    </div>
+
+    <h2>Advanced Flow Caveat</h2>
+    <div class="warning">
+      The tester also pushed on a live <code>tt-metal</code> ResNet50-to-<code>tt-npe</code> trace path. That
+      advanced route did not complete on the validated host because of environment issues outside the core
+      <code>tt-npe</code> install.
+    </div>
+    <figure>
+      <img src="assets/tt-npe/ttmetal_resnet_blocker.svg" alt="Advanced live tracing blocker">
+      <figcaption>Keep the beginner workflow focused on standalone tt-npe examples before chasing cross-tool tracing.</figcaption>
+    </figure>
+
+    <h2>Best Beginner Sequence</h2>
+    <pre>./build-npe.sh
+source ENV_SETUP
+tt_npe.py -w tt_npe/workload/example_wl.json
+export PYTHONPATH=$PWD/install/lib:$PWD/install/bin
+python3 install/bin/programmatic_workload_generation.py</pre>
+    <p>
+      If those two examples succeed, you already have a practical <code>tt-npe</code> workflow that stands on its own.
+    </p>
+  </main>
+</body>
+</html>

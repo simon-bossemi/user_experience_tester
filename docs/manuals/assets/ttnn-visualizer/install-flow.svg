@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="840" viewBox="0 0 1400 840" role="img" aria-labelledby="title desc">
+  <title id="title">TT-NN Visualizer installation flow</title>
+  <desc id="desc">A diagram showing Linux host, Python 3.10 virtual environment, pip install, and browser launch on localhost 8000.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f7fafc"/>
+      <stop offset="100%" stop-color="#edf7f3"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#0f766e"/>
+    </marker>
+    <style>
+      .title { font: 700 38px 'Segoe UI', Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 400 20px 'Segoe UI', Arial, sans-serif; fill: #475569; }
+      .box-title { font: 700 25px 'Segoe UI', Arial, sans-serif; fill: #0f766e; }
+      .body { font: 400 18px 'Segoe UI', Arial, sans-serif; fill: #334155; }
+      .code { font: 400 18px Consolas, 'DejaVu Sans Mono', monospace; fill: #e2e8f0; }
+      .mono { font: 400 18px Consolas, 'DejaVu Sans Mono', monospace; fill: #0f172a; }
+    </style>
+  </defs>
+  <rect width="1400" height="840" fill="url(#bg)"/>
+  <text x="70" y="80" class="title">TT-NN Visualizer install flow</text>
+  <text x="70" y="118" class="subtitle">Linux host, Python 3.10+, a virtual environment, and a local browser are enough to get started.</text>
+
+  <rect x="70" y="200" rx="28" ry="28" width="280" height="290" fill="#fff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="100" y="255" class="box-title">1. Host</text>
+  <text x="100" y="295" class="body">Use a Linux environment.</text>
+  <text x="100" y="335" class="body">Recommended baseline:</text>
+  <text x="100" y="368" class="mono">python 3.10+</text>
+  <text x="100" y="401" class="mono">pip</text>
+  <text x="100" y="434" class="mono">browser</text>
+
+  <rect x="400" y="200" rx="28" ry="28" width="300" height="290" fill="#fff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="430" y="255" class="box-title">2. Virtual env</text>
+  <rect x="430" y="295" rx="16" ry="16" width="240" height="145" fill="#0f172a"/>
+  <text x="448" y="333" class="code">python -m venv .env</text>
+  <text x="448" y="368" class="code">source .env/bin/activate</text>
+  <text x="448" y="403" class="code">pip install ttnn-visualizer</text>
+
+  <rect x="750" y="200" rx="28" ry="28" width="290" height="290" fill="#fff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="780" y="255" class="box-title">3. Start app</text>
+  <rect x="780" y="295" rx="16" ry="16" width="230" height="85" fill="#0f172a"/>
+  <text x="800" y="348" class="code">ttnn-visualizer</text>
+  <text x="780" y="430" class="body">Starts a local web app.</text>
+
+  <rect x="1090" y="200" rx="28" ry="28" width="250" height="290" fill="#fff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="1120" y="255" class="box-title">4. Open</text>
+  <text x="1120" y="315" class="mono">http://localhost:8000</text>
+  <text x="1120" y="360" class="body">Reports tab is active first.</text>
+  <text x="1120" y="393" class="body">Other tabs open after data</text>
+  <text x="1120" y="426" class="body">is loaded.</text>
+
+  <line x1="350" y1="345" x2="400" y2="345" stroke="#0f766e" stroke-width="8" marker-end="url(#arrow)"/>
+  <line x1="700" y1="345" x2="750" y2="345" stroke="#0f766e" stroke-width="8" marker-end="url(#arrow)"/>
+  <line x1="1040" y1="345" x2="1090" y2="345" stroke="#0f766e" stroke-width="8" marker-end="url(#arrow)"/>
+
+  <rect x="70" y="565" rx="28" ry="28" width="1270" height="180" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="100" y="620" class="box-title">What data it expects later</text>
+  <text x="100" y="660" class="body">For L1 memory analysis, the app needs a TT-NN memory report directory. Performance reports and NPE data are optional extra inputs.</text>
+  <text x="100" y="700" class="body">That means installation is lightweight, but useful analysis starts only after you generate report folders from TT-NN or TT-Metalium tooling.</text>
+</svg>

@@ -1,6 +1,6 @@
 ---
 name: user_experience_tester
-description: Understands tool tutorials and model inputs, then generates reproducible Linux setup assets in both Markdown and webpage form, highlighting the most useful visuals from the source material.
+description: Understands tool tutorials and model inputs, then generates reproducible Linux setup assets in both Markdown and webpage form, highlighting the most useful visuals from the source material, and ensures any manual run targets the BOPS A0 board connected via PCIe `01:00.0` (`Co-processor: Synopsys, Inc. DWC_usb3 / PCIe bridge`, kernel driver `bos`, kernel module `bos`).
 tools: ["read", "search", "edit"]
 ---
 

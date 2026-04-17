@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="796" viewBox="0 0 1400 796">
+<rect width="100%" height="100%" fill="#0b1220" rx="16" ry="16"/>
+<rect x="0" y="0" width="100%" height="38" fill="#111a2d" rx="16" ry="16"/>
+<text x="24" y="25" fill="#93c5fd" font-family="DejaVu Sans Mono, monospace" font-size="16">terminal capture</text>
+<text x="24" y="64" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">[1m[33mW: Transfer event missing &#x27;noc_event_type&#x27; in workload file &#x27;/home/bos/simon/tt-npe/local/resnet50_tt_xla_context_wl.json&#x27;[0m</text>
+<text x="24" y="92" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">[1m[33mW: Transfer event missing &#x27;noc_event_type&#x27; in workload file &#x27;/home/bos/simon/tt-npe/local/resnet50_tt_xla_context_wl.json&#x27;[0m</text>
+<text x="24" y="120" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">[1m[33mW: Transfer event missing &#x27;noc_event_type&#x27; in workload file &#x27;/home/bos/simon/tt-npe/local/resnet50_tt_xla_context_wl.json&#x27;[0m</text>
+<text x="24" y="148" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">Loaded workload successfully, starting tt-npe ... </text>
+<text x="24" y="176" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">tt-npe simulation finished successfully in 1087 us!</text>
+<text x="24" y="204" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">--- stats ----------------------------------</text>
+<text x="24" y="232" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">  congestion impact:   0.0%</text>
+<text x="24" y="260" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">   estimated cycles:  5249</text>
+<text x="24" y="288" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">      golden cycles:  1536</text>
+<text x="24" y="316" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">   cycle pred error: 241.7%</text>
+<text x="24" y="344" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve"></text>
+<text x="24" y="372" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">       DRAM BW Util:  11.3% (using golden)</text>
+<text x="24" y="400" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">       DRAM BW Util:   3.3% (using estimated)</text>
+<text x="24" y="428" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">        ETH BW Util:   0.0%</text>
+<text x="24" y="456" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve"></text>
+<text x="24" y="484" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">      avg Link util:   4.7%</text>
+<text x="24" y="512" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve"> avg Mcast link util:   0.0%</text>
+<text x="24" y="540" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">      max Link util:   7.4%</text>
+<text x="24" y="568" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve"></text>
+<text x="24" y="596" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">    avg Link demand:   4.7%</text>
+<text x="24" y="624" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">    max Link demand:   7.4%</text>
+<text x="24" y="652" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve"></text>
+<text x="24" y="680" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">    avg NIU  demand:   1.6%</text>
+<text x="24" y="708" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">    max NIU  demand:   2.1%</text>
+<text x="24" y="736" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve"></text>
+<text x="24" y="764" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve">   wallclock time:  1087 us</text>
+<text x="24" y="792" fill="#dbe7ff" font-family="DejaVu Sans Mono, monospace" font-size="18" xml:space="preserve"></text>
+</svg>
